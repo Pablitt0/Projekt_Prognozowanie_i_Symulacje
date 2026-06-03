@@ -446,6 +446,32 @@ sw_s_p, sw_p_p        = stats.shapiro(model_p.resid)
 bp_lm_p, bp_p_p, _, _ = het_breuschpagan(model_p.resid, X_tr_p)
 print(f"DW={dw_p:.4f}  BG p={bg_p:.4f}  SW p={sw_p_p:.4f}  BP p={bp_p_p:.4f}")
 
+# ── Dodatkowe testy – Model Polska ───────────────────────────
+
+# Ljung-Box (lag=2 max przy n=21)
+from statsmodels.stats.diagnostic import acorr_ljungbox
+lb_p = acorr_ljungbox(model_p.resid, lags=[1, 2], return_df=True)
+
+# Jarque-Bera – pomijamy dla n=21, moc za niska
+
+# RESET – forma funkcyjna
+from statsmodels.stats.diagnostic import linear_reset
+reset_p = linear_reset(model_p, power=2, use_f=True)
+
+# White – pomijamy dla n=21, za mało obserwacji
+
+# ADF – stacjonarność zmiennej zależnej
+from statsmodels.tsa.stattools import adfuller
+adf_p = adfuller(dp_tr["ln_zuzycie"], maxlag=2, autolag=None)
+
+# Condition number – multikolinearność
+cond_p = np.linalg.cond(X_tr_p)
+
+print(f"\n  Ljung-Box lag=1 p={lb_p['lb_pvalue'].iloc[0]:.4f}  lag=2 p={lb_p['lb_pvalue'].iloc[1]:.4f}")
+print(f"  RESET p={reset_p.pvalue:.4f}  {'forma OK ✓' if reset_p.pvalue>0.05 else 'błędna specyfikacja!'}")
+print(f"  ADF p={adf_p[1]:.4f}  {'stacjonarny ✓' if adf_p[1]<0.05 else 'niestacjonarny – wynik orientacyjny (n=21)'}")
+print(f"  Condition number={cond_p:.1f}  {'OK ✓' if cond_p<1000 else 'wysoka multikolinearność!'}")
+
 X_te_p = pd.DataFrame({"const":np.ones(len(dp_te)),
     "ln_pkb_pc":dp_te["ln_pkb_pc"].values,
     "ln_cena":dp_te["ln_cena"].values, "hdd":dp_te["hdd"].values})
@@ -525,10 +551,16 @@ ax.bar(range(1,max_lag),acf_v,color=BLUE,alpha=0.7)
 ci95=1.96/np.sqrt(len(resid_p)); ax.axhline(ci95,color=RED,ls="--",lw=1.5); ax.axhline(-ci95,color=RED,ls="--",lw=1.5)
 ax.axhline(0,color="black",lw=0.8); ax.set_title(f"ACF reszt  DW={dw_p:.3f}")
 ax=axes[1,2]; ax.axis("off")
-test_rows_p=[["Durbin-Watson",f"{dw_p:.4f}",ok(1.5<dw_p<2.5)],
-             ["Breusch-Godfrey p",f"{bg_p:.4f}",ok(bg_p>0.05)],
-             ["Shapiro-Wilk p",f"{sw_p_p:.4f}",ok(sw_p_p>0.05)],
-             ["Breusch-Pagan p",f"{bp_p_p:.4f}",ok(bp_p_p>0.05)]]
+test_rows_p=[
+    ["Durbin-Watson",            f"{dw_p:.4f}",   ok(1.5<dw_p<2.5)],
+    ["Breusch-Godfrey p",        f"{bg_p:.4f}",   ok(bg_p>0.05)],
+    ["Ljung-Box lag=1 p",        f"{lb_p['lb_pvalue'].iloc[0]:.4f}", ok(lb_p['lb_pvalue'].iloc[0]>0.05)],
+    ["Shapiro-Wilk p",           f"{sw_p_p:.4f}", ok(sw_p_p>0.05)],
+    ["Breusch-Pagan p",          f"{bp_p_p:.4f}", ok(bp_p_p>0.05)],
+    ["RESET p",                  f"{reset_p.pvalue:.4f}", ok(reset_p.pvalue>0.05)],
+    ["ADF p (orientacyjny n=21)",f"{adf_p[1]:.4f}", ok(adf_p[1]<0.05)],
+    ["Condition number",         f"{cond_p:.1f}", ok(cond_p<1000)],
+]
 t3=ax.table(cellText=test_rows_p,colLabels=["Test","Wartość","Wniosek"],cellLoc="center",loc="center",bbox=[0,0.1,1,0.75])
 t3.auto_set_font_size(False);t3.set_fontsize(10)
 for j in range(3): t3[0,j].set_facecolor("#1a5c96");t3[0,j].set_text_props(color="white",fontweight="bold")
@@ -586,6 +618,33 @@ bg_lm_fe, bg_fe,  _, _ = acorr_breusch_godfrey(model_fe, nlags=2)
 sw_s_fe, sw_p_fe        = stats.shapiro(model_fe.resid)
 bp_lm_fe, bp_p_fe, _, _ = het_breuschpagan(model_fe.resid, X_tr_w)
 print(f"DW={dw_fe:.4f}  BG p={bg_fe:.4f}  SW p={sw_p_fe:.4f}  BP p={bp_p_fe:.4f}")
+
+# ── Dodatkowe testy – Model FE ────────────────────────────────
+
+# Ljung-Box (lag=4 OK przy n=288)
+lb_fe = acorr_ljungbox(model_fe.resid, lags=[1, 2, 4], return_df=True)
+
+# Jarque-Bera (wiarygodny przy n=288)
+from statsmodels.stats.stattools import jarque_bera
+jb_stat_fe, jb_p_fe, jb_skew_fe, jb_kurt_fe = jarque_bera(model_fe.resid)
+
+# White – tylko na głównych zmiennych, bez dummy
+from statsmodels.stats.diagnostic import het_white
+white_fe_stat, white_fe_p, _, _ = het_white(model_fe.resid, X_tr_w[:, :n_main])
+
+# RESET – orientacyjny przy panelu z dummy
+reset_fe = linear_reset(model_fe, power=2, use_f=True)
+
+# Condition number – cała macierz X
+cond_fe = np.linalg.cond(X_tr_w)
+# Condition number – tylko główne zmienne (bez dummy)
+cond_fe_main = np.linalg.cond(X_tr_w[:, :n_main])
+
+print(f"\n  Ljung-Box lag=1 p={lb_fe['lb_pvalue'].iloc[0]:.4f}  lag=2 p={lb_fe['lb_pvalue'].iloc[1]:.4f}  lag=4 p={lb_fe['lb_pvalue'].iloc[2]:.4f}")
+print(f"  Jarque-Bera p={jb_p_fe:.4f}  skewness={jb_skew_fe:.3f}  kurtosis={jb_kurt_fe:.3f}")
+print(f"  White (bez dummy) p={white_fe_p:.4f}  {'homoskedastyczność ✓' if white_fe_p>0.05 else 'heteroskedastyczność!'}")
+print(f"  RESET p={reset_fe.pvalue:.4f}  {'forma OK ✓' if reset_fe.pvalue>0.05 else 'błędna specyfikacja (orientacyjny przy panelu)'}")
+print(f"  Condition number (pełny)={cond_fe:.1f}  (główne zmienne)={cond_fe_main:.1f}")
 
 model_pool = sm.OLS(y_tr_w, np.column_stack([np.ones(len(dw_tr)), X_vars_tr])).fit()
 q    = len(dum_cols)
@@ -693,11 +752,18 @@ ax.boxplot(box_data,patch_artist=True,boxprops=dict(facecolor=BLUE+"88"),medianp
 ax.set_xticklabels([p[:6] for p in PROV[:8]],rotation=35,ha="right",fontsize=8)
 ax.axhline(0,color=RED,ls="--",lw=1.5); ax.set_title("Reszty per województwo (8)")
 ax=axes[1,2]; ax.axis("off")
-test_rows_fe=[["Durbin-Watson",f"{dw_fe:.4f}",ok(1.5<dw_fe<2.5)],
-              ["Breusch-Godfrey p",f"{bg_fe:.4f}",ok(bg_fe>0.05)],
-              ["Shapiro-Wilk p",f"{sw_p_fe:.4f}",ok(sw_p_fe>0.05)],
-              ["Breusch-Pagan p",f"{bp_p_fe:.4f}",ok(bp_p_fe>0.05)],
-              ["F-test dummies p",f"{p_fe:.6f}","FE istotne ✓" if p_fe<0.05 else "FE nieistotne"]]
+test_rows_fe=[
+    ["Durbin-Watson (orientacyjny)", f"{dw_fe:.4f}",  ok(1.5<dw_fe<2.5)],
+    ["Breusch-Godfrey p",           f"{bg_fe:.4f}",  ok(bg_fe>0.05)],
+    ["Ljung-Box lag=4 p",           f"{lb_fe['lb_pvalue'].iloc[2]:.4f}", ok(lb_fe['lb_pvalue'].iloc[2]>0.05)],
+    ["Shapiro-Wilk p (n=288)",      f"{sw_p_fe:.4f}", ok(sw_p_fe>0.05)],
+    ["Jarque-Bera p",               f"{jb_p_fe:.4f}", ok(jb_p_fe>0.05)],
+    ["Breusch-Pagan p",             f"{bp_p_fe:.4f}", ok(bp_p_fe>0.05)],
+    ["White p (bez dummy)",         f"{white_fe_p:.4f}", ok(white_fe_p>0.05)],
+    ["RESET p (orientacyjny)",      f"{reset_fe.pvalue:.4f}", ok(reset_fe.pvalue>0.05)],
+    ["F-test dummies p",            f"{p_fe:.6f}", "FE istotne ✓" if p_fe<0.05 else "FE nieistotne"],
+    ["Condition number (główne)",   f"{cond_fe_main:.1f}", ok(cond_fe_main<1000)],
+]
 t4=ax.table(cellText=test_rows_fe,colLabels=["Test","Wartość","Wniosek"],cellLoc="center",loc="center",bbox=[0,0.08,1,0.85])
 t4.auto_set_font_size(False);t4.set_fontsize(9)
 for j in range(3): t4[0,j].set_facecolor("#1a5c96");t4[0,j].set_text_props(color="white",fontweight="bold")
