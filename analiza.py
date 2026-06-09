@@ -11,7 +11,7 @@
 #   Polska : ln(ZUZYCIE) = β₀ + β₁ln(PKB_pc) + β₂ln(CENA) + β₃HDD
 #   FE/woj : ln(ZUZYCIE) = Xβ + Σδₖ·dₖ  (15 efektów stałych)
 #
-# Podział: Train 2004–2022 | Test 2023–2024 | Ex-ante 2025
+# Metodologia: dane 2004–2023, prognoza ex-ante 2024
 # ============================================================
 
 import os, sys, pickle, warnings
@@ -58,11 +58,9 @@ BLUE   = "#1a5c96"; RED    = "#c0392b"; GREEN  = "#27ae60"
 GRAY   = "#7f8c8d"; ORANGE = "#e67e22"; PURPLE = "#8e44ad"
 PALETTE = list(plt.cm.tab20.colors[:16])
 
-TRAIN_END  = 2022
-TEST_YRS   = [2023, 2024]
-FC_YR      = 2025
-EVAL_START = 2015                            # krocząca ex-post: min. 11 lat próby uczącej
-EVAL_YEARS = list(range(EVAL_START, FC_YR))  # [2015 … 2024], n=10
+TRAIN_END  = 2023          # modele na danych 2004-2023
+TEST_YRS   = [2022, 2023]  # lata referencyjne in-sample (wizualizacje)
+FC_YR      = 2024          # horyzont prognozy ex-ante
 
 # ══════════════════════════════════════════════════════════════
 # HELPERS
@@ -83,16 +81,28 @@ def ok(cond): return "OK ✓" if cond else "!"
 
 def measures(y_act, y_hat):
     """Miary jakości – klucze bez %, używane w Z3."""
-    e = np.asarray(y_act, float) - np.asarray(y_hat, float)
     ya = np.asarray(y_act, float)
+    yh = np.asarray(y_hat, float)
+    e  = ya - yh
+    mse = (e**2).mean()
     u_num = np.sqrt((e**2).sum())
-    u_den = np.sqrt((ya**2).sum()) + np.sqrt((np.asarray(y_hat, float)**2).sum())
+    u_den = np.sqrt((ya**2).sum()) + np.sqrt((yh**2).sum())
+    # Theil U decomposition: UM + UV + UC = 1
+    mean_bias = (yh.mean() - ya.mean())**2
+    var_diff  = (yh.std(ddof=0) - ya.std(ddof=0))**2
+    r = float(np.corrcoef(ya, yh)[0, 1]) if len(ya) > 1 else 0.0
+    cov_part  = 2 * (1 - r) * ya.std(ddof=0) * yh.std(ddof=0)
+    denom = mean_bias + var_diff + cov_part
+    UM = mean_bias / denom if denom else np.nan
+    UV = var_diff  / denom if denom else np.nan
+    UC = cov_part  / denom if denom else np.nan
     return dict(
         ME=e.mean(), MPE=(e/ya*100).mean(),
         MAE=np.abs(e).mean(), MAPE=(np.abs(e)/ya*100).mean(),
-        RMSE=np.sqrt((e**2).mean()),
+        RMSE=np.sqrt(mse),
         RMSPE=np.sqrt(((e/ya)**2).mean())*100,
         TheilU=u_num/u_den if u_den else np.nan,
+        UM=UM, UV=UV, UC=UC,
     )
 
 def miary(y_act, y_hat):
@@ -100,7 +110,8 @@ def miary(y_act, y_hat):
     m = measures(y_act, y_hat)
     return {"ME": m["ME"], "MPE%": m["MPE"], "MAE": m["MAE"],
             "MAPE%": m["MAPE"], "RMSE": m["RMSE"],
-            "RMSPE%": m["RMSPE"], "TheilU": m["TheilU"]}
+            "RMSPE%": m["RMSPE"], "TheilU": m["TheilU"],
+            "UM": m["UM"], "UV": m["UV"], "UC": m["UC"]}
 
 def rmspe_fn(y_act, y_hat):
     ya, yh = np.asarray(y_act, float), np.asarray(y_hat, float)
@@ -122,71 +133,101 @@ def _X2(t):
     return np.column_stack([np.ones(len(t)), t, t**2])
 
 def forecast_all(y_train, t_train, y_test, t_test, t_fc):
-    """7 metod prognozy → dict metoda → {pred_test, pred_fc, rmspe, mape}."""
+    """5 metod prognozy → dict metoda → {pred_test, pred_fc, fitted, rmspe, mape}.
+    rmspe/mape liczone na wartościach dopasowanych do pełnej próby uczącej (ex-post 2004–TRAIN_END).
+    pred_test – prognoza dla t_test (wizualizacja TEST_YRS).
+    pred_fc   – prognoza ex-ante dla t_fc.
+    fitted    – wartości dopasowane do próby uczącej (do obliczeń miar jakości).
+    """
     y_tr = np.asarray(y_train, float)
     t_tr = np.asarray(t_train, float)
     t_te = np.atleast_1d(np.asarray(t_test, float))
     t_f  = np.atleast_1d(np.asarray(t_fc,  float))
-    y_te = np.asarray(y_test, float)
     n_ahead = len(t_te) + len(t_f)
     res = {}
 
     # 1. OLS liniowy
     m = sm.OLS(y_tr, _X1(t_tr)).fit()
-    res["OLS_lin"] = {"pred_test": m.predict(_X1(t_te)), "pred_fc": m.predict(_X1(t_f))}
+    res["OLS_lin"] = {
+        "pred_test": m.predict(_X1(t_te)),
+        "pred_fc":   m.predict(_X1(t_f)),
+        "fitted":    np.asarray(m.fittedvalues).ravel(),
+    }
 
     # 2. OLS kwadratowy
     m2 = sm.OLS(y_tr, _X2(t_tr)).fit()
-    res["OLS_kw"] = {"pred_test": m2.predict(_X2(t_te)), "pred_fc": m2.predict(_X2(t_f))}
+    res["OLS_kw"] = {
+        "pred_test": m2.predict(_X2(t_te)),
+        "pred_fc":   m2.predict(_X2(t_f)),
+        "fitted":    np.asarray(m2.fittedvalues).ravel(),
+    }
 
-    # 3-4. AR(1) i AR(2)
-    def _ar(p):
+    # 3. ARIMA (auto)
+    def _ar1_fallback_fc():
         try:
             from statsmodels.tsa.arima.model import ARIMA
-            return np.asarray(ARIMA(y_tr, order=(p,0,0)).fit().forecast(n_ahead)).ravel()
+            fit = ARIMA(y_tr, order=(1,0,0)).fit()
+            return (np.asarray(fit.forecast(n_ahead)).ravel(),
+                    np.asarray(fit.fittedvalues).ravel())
         except Exception:
             from statsmodels.tsa.ar_model import AutoReg
-            mdl = AutoReg(y_tr, lags=p).fit()
-            return np.asarray(mdl.predict(len(y_tr), len(y_tr)+n_ahead-1)).ravel()
+            fit = AutoReg(y_tr, lags=1).fit()
+            fc_v = np.asarray(fit.predict(len(y_tr), len(y_tr)+n_ahead-1)).ravel()
+            fv   = np.asarray(fit.fittedvalues).ravel()
+            pad  = np.full(len(y_tr)-len(fv), float("nan"))
+            return fc_v, np.concatenate([pad, fv])
 
-    ar1 = _ar(1); ar2 = _ar(2)
-    res["AR1"] = {"pred_test": ar1[:len(t_te)], "pred_fc": ar1[len(t_te):]}
-    res["AR2"] = {"pred_test": ar2[:len(t_te)], "pred_fc": ar2[len(t_te):]}
-
-    # 5. ARIMA
     if HAS_PMDARIMA:
         try:
             am = auto_arima(y_tr, seasonal=False, suppress_warnings=True,
                             error_action="ignore", stepwise=True, max_p=3, max_q=2)
-            fc = np.asarray(am.predict(n_periods=n_ahead)).ravel()
+            fc       = np.asarray(am.predict(n_periods=n_ahead)).ravel()
+            try:
+                fitted_a = np.asarray(am.predict_in_sample()).ravel()
+            except Exception:
+                fitted_a = y_tr.copy()
         except Exception:
-            fc = ar2
+            fc, fitted_a = _ar1_fallback_fc()
     else:
-        fc = ar2
-    res["ARIMA"] = {"pred_test": fc[:len(t_te)], "pred_fc": fc[len(t_te):]}
+        fc, fitted_a = _ar1_fallback_fc()
+    res["ARIMA"] = {"pred_test": fc[:len(t_te)], "pred_fc": fc[len(t_te):], "fitted": fitted_a}
 
-    # 6. Holt
+    # 4. Holt
+    hm_obj = None
     try:
-        hm = SimpleExpSmoothing(y_tr, initialization_method="estimated").fit(
+        hm_obj = SimpleExpSmoothing(y_tr, initialization_method="estimated").fit(
             optimized=True, use_brute=False)
-        hf = np.asarray(hm.forecast(n_ahead)).ravel()
+        hf = np.asarray(hm_obj.forecast(n_ahead)).ravel()
+        fitted_h = np.asarray(hm_obj.fittedvalues).ravel()
     except Exception:
         try:
-            hf = np.asarray(SimpleExpSmoothing(y_tr).fit().forecast(n_ahead)).ravel()
+            hm_obj = SimpleExpSmoothing(y_tr).fit()
+            hf = np.asarray(hm_obj.forecast(n_ahead)).ravel()
+            fitted_h = np.asarray(hm_obj.fittedvalues).ravel()
         except Exception:
-            hf = ar1
-    res["Holt"] = {"pred_test": hf[:len(t_te)], "pred_fc": hf[len(t_te):]}
+            fc_fb, fitted_fb = _ar1_fallback_fc()
+            hf = fc_fb; fitted_h = fitted_fb
+    res["Holt"] = {"pred_test": hf[:len(t_te)], "pred_fc": hf[len(t_te):], "fitted": fitted_h}
 
-    # 7. Pawłowski (ważona regresja liniowa)
+    # 5. Pawłowski (ważona regresja liniowa)
     w = np.arange(1, len(y_tr)+1, dtype=float); w /= w.sum()
     mp = sm.WLS(y_tr, _X1(t_tr), weights=w).fit()
-    res["Pawl"] = {"pred_test": mp.predict(_X1(t_te)), "pred_fc": mp.predict(_X1(t_f))}
+    res["Pawl"] = {
+        "pred_test": mp.predict(_X1(t_te)),
+        "pred_fc":   mp.predict(_X1(t_f)),
+        "fitted":    np.asarray(mp.fittedvalues).ravel(),
+    }
 
     for k, v in res.items():
         v["pred_test"] = np.asarray(v["pred_test"]).ravel()
         v["pred_fc"]   = np.asarray(v["pred_fc"]).ravel()
-        v["rmspe"] = rmspe_fn(y_te, v["pred_test"])
-        v["mape"]  = mape_fn(y_te,  v["pred_test"])
+        v["fitted"]    = np.asarray(v["fitted"]).ravel()
+        # RMSPE/MAPE na pełnej próbie uczącej (in-sample ex-post 2004–TRAIN_END)
+        fit_v = v["fitted"]
+        valid  = ~np.isnan(fit_v)
+        v["rmspe"] = rmspe_fn(y_tr[valid], fit_v[valid]) if valid.any() else float("inf")
+        v["mape"]  = mape_fn(y_tr[valid],  fit_v[valid]) if valid.any() else float("inf")
+        v["ms"]    = measures(y_tr[valid], fit_v[valid]) if valid.any() else {}
     return res
 
 # ══════════════════════════════════════════════════════════════
@@ -204,8 +245,8 @@ df_p["ln_zuzycie"]     = np.log(df_p["zuzycie_energii_GWh"])
 df_p["ln_pkb_pc"]      = np.log(df_p["pkb_per_capita"])
 df_p["ln_cena"]        = np.log(df_p["cena_energii_zl_kWh"])
 
-dp_tr = df_p[df_p["rok"] <= TRAIN_END].copy()
-dp_te = df_p[df_p["rok"].isin(TEST_YRS)].copy()
+dp_tr  = df_p[df_p["rok"] <= TRAIN_END].copy()    # 2004-2023, n=20
+dp_te  = df_p[df_p["rok"].isin(TEST_YRS)].copy()  # 2022-2023, in-sample (Z4 + wizualizacje)
 t_tr_p = dp_tr["rok"].values
 t_te_p = dp_te["rok"].values
 t_fc   = np.array([FC_YR])
@@ -225,16 +266,16 @@ df_w["ln_cena"]           = np.log(df_w["cena_energii_zl_kWh"])
 df_w["ln_dochod_os_lag1"] = df_w.groupby("wojewodztwo")["ln_dochod_os"].shift(1)
 
 PROV = sorted(df_w["wojewodztwo"].unique())
-dw_tr = df_w[(df_w["rok"] > 2004) & (df_w["rok"] <= TRAIN_END)].copy()
-dw_te = df_w[df_w["rok"].isin(TEST_YRS)].copy()
+dw_tr = df_w[(df_w["rok"] > 2004) & (df_w["rok"] <= TRAIN_END)].copy()  # 2005-2023
+dw_te = df_w[df_w["rok"].isin(TEST_YRS)].copy()  # 2022-2023, in-sample
 
 X_P  = ["ln_pkb_pc", "ln_cena", "hdd"]
 X_FE = ["ln_dochod_os_lag1", "ln_cena", "urbanizacja_pct", "liczba_os", "pow_os", "hdd"]
 
 print(f"Polska : {len(df_p)} obs ({int(df_p.rok.min())}–{int(df_p.rok.max())}), "
-      f"train={len(dp_tr)}, test={len(dp_te)}")
+      f"model={len(dp_tr)} (2004–{TRAIN_END}), FC={FC_YR}")
 print(f"Woj.   : {len(df_w)} obs | {len(PROV)} woj × {df_w.rok.nunique()} lat, "
-      f"train={len(dw_tr)}, test={len(dw_te)}")
+      f"model={len(dw_tr)} (2005–{TRAIN_END})")
 
 
 # ╔══════════════════════════════════════════════════════════════╗
@@ -479,24 +520,7 @@ y_hat_te_p = np.exp(np.asarray(model_p.predict(X_te_p)).ravel())
 y_act_te_p = dp_te["zuzycie_energii_GWh"].values
 ms_p_te = measures(y_act_te_p, y_hat_te_p)
 ms_p_tr = measures(np.exp(y_tr_p), np.exp(model_p.fittedvalues))
-print(f"RMSPE% train={ms_p_tr['RMSPE']:.2f}%  test(2023-24)={ms_p_te['RMSPE']:.2f}%")
-
-# ── Krocząca prognoza ex-post Polska (rzeczywiste X, model re-estymowany) ──
-roll_p_expost = []
-for t_ev in EVAL_YEARS:
-    dtr_r = df_p[df_p["rok"] < t_ev]
-    dte_r = df_p[df_p["rok"] == t_ev]
-    y_r   = dtr_r["ln_zuzycie"].values
-    X_r   = np.column_stack([np.ones(len(dtr_r)), dtr_r[X_P].values])
-    X_te_r= np.column_stack([np.ones(1), dte_r[X_P].values])
-    m_r   = sm.OLS(y_r, X_r).fit()
-    y_hat_r = np.exp(float(m_r.predict(X_te_r)[0]))
-    roll_p_expost.append({"rok": t_ev, "y_act": float(dte_r["zuzycie_energii_GWh"].values[0]), "y_hat": y_hat_r})
-
-y_act_rp = np.array([r["y_act"] for r in roll_p_expost])
-y_hat_rp = np.array([r["y_hat"] for r in roll_p_expost])
-ms_p_roll = measures(y_act_rp, y_hat_rp)
-print(f"Rolling RMSPE% ({EVAL_START}–2024, n={len(roll_p_expost)}): {ms_p_roll['RMSPE']:.2f}%")
+print(f"RMSPE% in-sample (2004–{TRAIN_END})={ms_p_tr['RMSPE']:.2f}%")
 
 # PNG 01 – Koeficjenty + miary
 coef_rows_p = [[lbl, f"{model_p.params[i]:.4f}", f"{model_p.bse[i]:.4f}",
@@ -505,8 +529,8 @@ coef_rows_p = [[lbl, f"{model_p.params[i]:.4f}", f"{model_p.bse[i]:.4f}",
 fit_rows_p = [["R²",f"{model_p.rsquared:.4f}"],["R² skoryg.",f"{model_p.rsquared_adj:.4f}"],
               ["AIC",f"{model_p.aic:.2f}"],["BIC",f"{model_p.bic:.2f}"],
               ["F-stat",f"{model_p.fvalue:.2f}"],["p(F)",f"{model_p.f_pvalue:.6f}"],
-              ["N (train)",f"{len(dp_tr)}"],["RMSPE% train",f"{ms_p_tr['RMSPE']:.2f}%"],
-              [f"RMSPE% rolling ({EVAL_START}–2024)",f"{ms_p_roll['RMSPE']:.2f}%"]]
+              ["N",f"{len(dp_tr)}"],
+              [f"RMSPE% in-sample (2004–{TRAIN_END})",f"{ms_p_tr['RMSPE']:.2f}%"]]
 fig, (ax1,ax2) = plt.subplots(1,2,figsize=(18,5))
 fig.suptitle("Model Polska:  ln(ZUZYCIE) = β₀ + β₁·ln(PKB_pc) + β₂·ln(CENA) + β₃·HDD", fontsize=12, fontweight="bold")
 ax1.axis("off")
@@ -525,7 +549,7 @@ t2.auto_set_font_size(False);t2.set_fontsize(11)
 for j in range(2): t2[0,j].set_facecolor("#1a5c96");t2[0,j].set_text_props(color="white",fontweight="bold")
 for i in range(1,len(fit_rows_p)+1):
     bg="#f0f5ff" if i%2==0 else "white"; t2[i,0].set_facecolor(bg);t2[i,1].set_facecolor(bg)
-t2[len(fit_rows_p),1].set_facecolor("#c8e6c9" if ms_p_te['RMSPE']<=10 else "#ffcdd2")
+t2[len(fit_rows_p),1].set_facecolor("#c8e6c9" if ms_p_tr['RMSPE']<=10 else "#ffcdd2")
 ax2.set_title("Miary dopasowania",fontsize=11,fontweight="bold",pad=6)
 plt.tight_layout()
 save("z3_01_model_polska_koef.png")
@@ -574,21 +598,19 @@ plt.tight_layout(); save("z3_02_model_polska_diag.png")
 X_full_p=pd.DataFrame({"const":np.ones(len(df_p)),"ln_pkb_pc":df_p["ln_pkb_pc"].values,
                         "ln_cena":df_p["ln_cena"].values,"hdd":df_p["hdd"].values})
 y_hat_full_p=np.exp(np.asarray(model_p.predict(X_full_p)).ravel())
-ymin_p=min(df_p["zuzycie_energii_GWh"].min(),y_hat_full_p.min())*0.97
-roks_roll=[r["rok"] for r in roll_p_expost]
-yhat_roll=[r["y_hat"] for r in roll_p_expost]
-yact_roll=[r["y_act"] for r in roll_p_expost]
+# PNG 03 – Dopasowanie modelu Polska
 fig,ax=plt.subplots(figsize=(14,6))
-ax.plot(df_p["rok"],df_p["zuzycie_energii_GWh"],"o-",color=BLUE,lw=2.2,ms=7,zorder=5,label="Rzeczywiste")
-ax.plot(df_p[df_p["rok"]<EVAL_START]["rok"],y_hat_full_p[:len(df_p[df_p["rok"]<EVAL_START])],"s--",color=GREEN,lw=1.8,ms=5,alpha=0.7,label="Dopasowane (próba ucząca)")
-ax.plot(roks_roll,yhat_roll,"^-",color=RED,lw=2,ms=8,label=f"Krocząca ex-post {EVAL_START}–2024  RMSPE={ms_p_roll['RMSPE']:.1f}%")
-ax.fill_between(roks_roll,
-                [r["y_act"] for r in roll_p_expost],
-                [r["y_hat"] for r in roll_p_expost],
-                alpha=0.12,color=RED)
-ax.axvline(EVAL_START-0.5,color=GRAY,ls=":",lw=1.8,alpha=0.7)
-ax.text(EVAL_START-0.4,ymin_p,"← Próba ucząca | Okres weryfikacyjny →",color=GRAY,fontsize=9)
-ax.set_title(f"Model Polska – krocząca prognoza ex-post ({EVAL_START}–2024, model re-estymowany co rok)",fontsize=11,fontweight="bold")
+ax.plot(df_p[df_p["rok"]<=TRAIN_END]["rok"],df_p[df_p["rok"]<=TRAIN_END]["zuzycie_energii_GWh"],
+        "o-",color=BLUE,lw=2.2,ms=7,zorder=5,label=f"Rzeczywiste (2004–{TRAIN_END})")
+ax.plot(dp_tr["rok"].values,y_hat_full_p[:len(dp_tr)],
+        "s--",color=GREEN,lw=1.8,ms=5,alpha=0.85,
+        label=f"Dopasowane in-sample  RMSPE={ms_p_tr['RMSPE']:.1f}%")
+ax.fill_between(dp_tr["rok"].values,
+                dp_tr["zuzycie_energii_GWh"].values,
+                y_hat_full_p[:len(dp_tr)],
+                alpha=0.10,color=GREEN)
+ax.axvline(TRAIN_END+0.5,color=GRAY,ls=":",lw=1.8,alpha=0.7)
+ax.set_title(f"Model Polska – dopasowanie in-sample (2004–{TRAIN_END})",fontsize=11,fontweight="bold")
 ax.set_xlabel("Rok"); ax.set_ylabel("Zużycie energii [GWh]")
 ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,_: f"{x:,.0f}"))
 ax.legend(loc="upper left"); ax.xaxis.set_major_locator(mticker.MultipleLocator(4))
@@ -669,39 +691,7 @@ for prov in PROV:
     ya=y_act_te_w[mask]; yh=y_hat_te_w[mask]
     prov_rmspe[prov] = np.sqrt(((ya-yh)**2/ya**2).mean())*100
 good_fe = sum(1 for v in prov_rmspe.values() if v<=10)
-print(f"RMSPE% train={ms_fe_tr['RMSPE']:.2f}%  test(2023-24)={ms_fe_te['RMSPE']:.2f}%  woj≤10%: {good_fe}/16")
-
-# ── Krocząca prognoza ex-post FE (rzeczywiste X, model re-estymowany) ────
-roll_fe_expost = {prov: [] for prov in PROV}
-for t_ev in EVAL_YEARS:
-    dtr_r = df_w[(df_w["rok"] > 2004) & (df_w["rok"] < t_ev)]
-    dte_r = df_w[df_w["rok"] == t_ev]
-    if len(dtr_r) < 50 or len(dte_r) == 0: continue
-    dum_tr_r = pd.get_dummies(dtr_r["wojewodztwo"], drop_first=True).astype(float)
-    for c in dum_cols:
-        if c not in dum_tr_r.columns: dum_tr_r[c] = 0.0
-    dum_tr_r = dum_tr_r[dum_cols]
-    X_tr_r = np.column_stack([np.ones(len(dtr_r)), dtr_r[X_FE].values, dum_tr_r.values])
-    m_r = sm.OLS(dtr_r["ln_zuzycie"].values, X_tr_r).fit()
-    dum_te_r = pd.get_dummies(dte_r["wojewodztwo"]).astype(float)
-    for c in dum_cols:
-        if c not in dum_te_r.columns: dum_te_r[c] = 0.0
-    dum_te_r = dum_te_r[dum_cols]
-    X_te_r = np.column_stack([np.ones(len(dte_r)), dte_r[X_FE].values, dum_te_r.values])
-    y_hat_r = np.exp(np.asarray(m_r.predict(X_te_r)).ravel())
-    for prov, ya, yh in zip(dte_r["wojewodztwo"].values, dte_r["zuzycie_energii_GWh"].values, y_hat_r):
-        roll_fe_expost[prov].append((t_ev, float(ya), float(yh)))
-
-y_act_rfe = np.concatenate([[ya for _,ya,_ in v] for v in roll_fe_expost.values() if v])
-y_hat_rfe = np.concatenate([[yh for _,_,yh in v] for v in roll_fe_expost.values() if v])
-ms_fe_roll = measures(y_act_rfe, y_hat_rfe)
-prov_roll_rmspe = {}
-for prov, lst in roll_fe_expost.items():
-    if lst:
-        ya_p = np.array([ya for _,ya,_ in lst]); yh_p = np.array([yh for _,_,yh in lst])
-        prov_roll_rmspe[prov] = rmspe_fn(ya_p, yh_p)
-good_roll_fe = sum(1 for v in prov_roll_rmspe.values() if v <= 10)
-print(f"Rolling RMSPE% FE ({EVAL_START}–2024, n={len(y_act_rfe)}): {ms_fe_roll['RMSPE']:.2f}%  woj≤10%: {good_roll_fe}/16")
+print(f"RMSPE% in-sample (2005–{TRAIN_END})={ms_fe_tr['RMSPE']:.2f}%")
 
 # PNG 04 – Koeficjenty FE
 coef_rows_fe = [[lbl, f"{model_fe.params[i]:.4f}", f"{model_fe.bse[i]:.4f}",
@@ -710,10 +700,9 @@ coef_rows_fe = [[lbl, f"{model_fe.params[i]:.4f}", f"{model_fe.bse[i]:.4f}",
 fit_rows_fe = [["R²",f"{model_fe.rsquared:.4f}"],["R² skoryg.",f"{model_fe.rsquared_adj:.4f}"],
                ["AIC",f"{model_fe.aic:.2f}"],["BIC",f"{model_fe.bic:.2f}"],
                ["F-stat",f"{model_fe.fvalue:.2f}"],["p(F)",f"{model_fe.f_pvalue:.6f}"],
-               ["N (train)",f"{len(dw_tr)}"],["F-test dummies (p)",f"{p_fe:.6f}"],
-               ["RMSPE% train",f"{ms_fe_tr['RMSPE']:.2f}%"],
-               [f"RMSPE% rolling ({EVAL_START}–2024)",f"{ms_fe_roll['RMSPE']:.2f}%"],
-               [f"Woj. RMSPE≤10% (rolling)",f"{good_roll_fe}/{len(prov_roll_rmspe)}"]]
+               ["N",f"{len(dw_tr)}"],["F-test dummies (p)",f"{p_fe:.6f}"],
+               [f"RMSPE% in-sample (2005–{TRAIN_END})",f"{ms_fe_tr['RMSPE']:.2f}%"],
+               [f"Woj. RMSPE≤10% (in-sample)",f"{good_fe}/{len(prov_rmspe)}"]]
 fig,(ax1,ax2)=plt.subplots(1,2,figsize=(18,5))
 fig.suptitle("Model FE – Województwa:  ln(ZUZYCIE) = Xβ + Σδₖ·dₖ  (15 efektów stałych)",fontsize=12,fontweight="bold")
 ax1.axis("off")
@@ -773,71 +762,49 @@ for i,row in enumerate(test_rows_fe,1):
 ax.set_title("Testy diagnostyczne",fontsize=11,fontweight="bold",pad=6)
 plt.tight_layout(); save("z3_05_model_fe_diag.png")
 
-# PNG 06 – Krocząca ex-post FE (8 województw)
-fig,axes=plt.subplots(2,4,figsize=(22,10))
-fig.suptitle(f"Model FE – krocząca prognoza ex-post per województwo ({EVAL_START}–2024)",fontsize=12,fontweight="bold")
-for i,(ax,prov) in enumerate(zip(axes.flat,PROV[:8])):
-    d_act=df_w[df_w["wojewodztwo"]==prov]
-    ax.plot(d_act["rok"],d_act["zuzycie_energii_GWh"],"o-",color=BLUE,lw=2,ms=5,label="Rzeczywiste")
-    lst=roll_fe_expost.get(prov,[])
-    if lst:
-        roks_r=[t for t,_,_ in lst]; yhat_r=[yh for _,_,yh in lst]
-        ax.plot(roks_r,yhat_r,"^-",color=RED,lw=2,ms=7,label=f"Rolling ex-post")
-        ax.fill_between(roks_r,[ya for _,ya,_ in lst],yhat_r,alpha=0.12,color=RED)
-    ax.axvline(EVAL_START-0.5,color=GRAY,ls=":",lw=1.2)
-    rmspe_r=prov_roll_rmspe.get(prov,float("nan"))
-    ax.set_title(f"{prov}  RMSPE={rmspe_r:.1f}%",fontsize=9)
-    ax.set_xlabel("Rok",fontsize=8)
-    if i%4==0: ax.set_ylabel("GWh")
-    if i==0: ax.legend(fontsize=7,loc="upper left")
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,_: f"{x:,.0f}"))
+# PNG 06 – Dopasowanie in-sample FE (8 województw)
+fig, axes = plt.subplots(2, 4, figsize=(22, 10))
+fig.suptitle(f"Model FE – dopasowanie in-sample per województwo (2005–{TRAIN_END})", fontsize=12, fontweight="bold")
+for i, (ax, prov) in enumerate(zip(axes.flat, PROV[:8])):
+    idx_p = dw_tr["wojewodztwo"].values == prov
+    if not idx_p.any():
+        ax.set_title(prov, fontsize=9); continue
+    t_p     = dw_tr[idx_p]["rok"].values
+    y_act_p = np.exp(y_tr_w[idx_p])
+    y_fit_p = np.exp(model_fe.fittedvalues[idx_p])
+    ax.plot(t_p, y_act_p, "o-", color=BLUE, lw=2, ms=5, label="Rzeczywiste")
+    ax.plot(t_p, y_fit_p, "s--", color=RED, lw=2, ms=5, label="Dopasowane")
+    ax.fill_between(t_p, y_act_p, y_fit_p, alpha=0.10, color=RED)
+    rmspe_r = prov_rmspe.get(prov, float("nan"))
+    ax.set_title(f"{prov}  RMSPE={rmspe_r:.1f}%", fontsize=9)
+    ax.set_xlabel("Rok", fontsize=8)
+    if i % 4 == 0: ax.set_ylabel("GWh")
+    if i == 0: ax.legend(fontsize=7, loc="upper left")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
 plt.tight_layout(); save("z3_06_model_fe_fit.png")
 
 # PNG 07 – Porównanie modeli
 comp_data=[
     ["Model Polska (OLS)",f"{model_p.rsquared:.4f}",f"{model_p.rsquared_adj:.4f}",
      f"{model_p.aic:.1f}",f"{model_p.bic:.1f}",f"{ms_p_tr['RMSPE']:.2f}%",
-     f"{ms_p_roll['RMSPE']:.2f}%",f"{len(EVAL_YEARS)} obs",
-     "OK ✓" if ms_p_roll['RMSPE']<=10 else "Wysoki"],
+     f"{len(dp_tr)} obs","OK ✓" if ms_p_tr['RMSPE']<=10 else "Wysoki"],
     ["Model FE Woj. (panel)",f"{model_fe.rsquared:.4f}",f"{model_fe.rsquared_adj:.4f}",
      f"{model_fe.aic:.1f}",f"{model_fe.bic:.1f}",f"{ms_fe_tr['RMSPE']:.2f}%",
-     f"{ms_fe_roll['RMSPE']:.2f}%",f"{good_roll_fe}/16 woj.",
-     "OK ✓" if ms_fe_roll['RMSPE']<=10 else "Wysoki"],
+     f"{good_fe}/16 woj.","OK ✓" if ms_fe_tr['RMSPE']<=10 else "Wysoki"],
 ]
-comp_cols=["Model","R²","R²adj","AIC","BIC","RMSPE% (train)",f"RMSPE% rolling\n({EVAL_START}–2024)","Woj./obs.","Status"]
-fig,ax=plt.subplots(figsize=(18,3)); ax.axis("off")
+comp_cols=["Model","R²","R²adj","AIC","BIC",f"RMSPE% in-sample\n(2004–{TRAIN_END})","Woj./obs.","Status"]
+fig,ax=plt.subplots(figsize=(16,3)); ax.axis("off")
 t=ax.table(cellText=comp_data,colLabels=comp_cols,cellLoc="center",loc="center",bbox=[0,0,1,1])
 t.auto_set_font_size(False);t.set_fontsize(11)
 for j in range(len(comp_cols)): t[0,j].set_facecolor("#1a5c96");t[0,j].set_text_props(color="white",fontweight="bold")
 for i,row in enumerate(comp_data,1):
     ok_r=row[-1].startswith("OK")
     for j in range(len(comp_cols)): t[i,j].set_facecolor("#dff0d8" if ok_r else "#fff3cd")
-    t[i,comp_cols.index(f"RMSPE% rolling\n({EVAL_START}–2024)")].set_facecolor("#c8e6c9" if ok_r else "#ffcdd2")
+    t[i,5].set_facecolor("#c8e6c9" if ok_r else "#ffcdd2")
 ax.set_title("Porównanie modeli – miary jakości dopasowania i prognozy",fontsize=12,fontweight="bold",pad=10)
 plt.tight_layout(); save("z3_07_rmspe_porownanie.png")
 
-# PNG 08 – Zbiorcze miary kroczeń ex-post
-rok_rp=[r["rok"] for r in roll_p_expost]
-err_rp=[(r["y_hat"]-r["y_act"])/r["y_act"]*100 for r in roll_p_expost]
-fe_sum_act=[sum(ya for p,lst in roll_fe_expost.items() for t,ya,_ in lst if t==t_ev) for t_ev in EVAL_YEARS]
-fe_sum_hat=[sum(yh for p,lst in roll_fe_expost.items() for t,_,yh in lst if t==t_ev) for t_ev in EVAL_YEARS]
-err_rfe=[(sh-sa)/sa*100 if sa>0 else 0 for sa,sh in zip(fe_sum_act,fe_sum_hat)]
-fig,(ax1,ax2)=plt.subplots(1,2,figsize=(18,6))
-fig.suptitle(f"Krocząca prognoza ex-post – błędy procentowe ({EVAL_START}–2024)",fontsize=13,fontweight="bold")
-ax1.bar(rok_rp,err_rp,color=[GREEN if abs(e)<=10 else RED for e in err_rp],alpha=0.75,edgecolor="white")
-ax1.axhline(0,color="black",lw=1); ax1.axhline(10,color=RED,ls="--",lw=1.3,alpha=0.7); ax1.axhline(-10,color=RED,ls="--",lw=1.3,alpha=0.7)
-ax1.set_title(f"Model Polska  RMSPE={ms_p_roll['RMSPE']:.1f}%",fontsize=11,fontweight="bold")
-ax1.set_xlabel("Rok"); ax1.set_ylabel("Błąd prognozy [%]")
-ax1.xaxis.set_major_locator(mticker.MultipleLocator(2))
-ax2.bar(EVAL_YEARS,err_rfe,color=[GREEN if abs(e)<=10 else RED for e in err_rfe],alpha=0.75,edgecolor="white")
-ax2.axhline(0,color="black",lw=1); ax2.axhline(10,color=RED,ls="--",lw=1.3,alpha=0.7); ax2.axhline(-10,color=RED,ls="--",lw=1.3,alpha=0.7)
-ax2.set_title(f"Model FE – suma woj.  RMSPE={ms_fe_roll['RMSPE']:.1f}%",fontsize=11,fontweight="bold")
-ax2.set_xlabel("Rok"); ax2.set_ylabel("Błąd prognozy [%]")
-ax2.xaxis.set_major_locator(mticker.MultipleLocator(2))
-for ax in (ax1,ax2):
-    ax.text(EVAL_YEARS[0]-0.3,11.5,"±10% kryterium",color=RED,fontsize=8,alpha=0.8)
-plt.tight_layout(); save("z3_08_rolling_expost.png")
-print("  Z3: pliki z3_01..z3_08_*.png gotowe")
+print("  Z3: pliki z3_01..z3_07_*.png gotowe")
 
 
 # ╔══════════════════════════════════════════════════════════════╗
@@ -847,8 +814,8 @@ print("\n" + "=" * 60)
 print("ZADANIE 4 – PROGNOZY ZMIENNYCH OBJAŚNIAJĄCYCH")
 print("=" * 60)
 
-METHODS = ["OLS_lin","OLS_kw","AR1","AR2","ARIMA","Holt","Pawl"]
-COLORS_M = {"OLS_lin":BLUE,"OLS_kw":GREEN,"AR1":RED,"AR2":ORANGE,"ARIMA":PURPLE,"Holt":GRAY,"Pawl":"#16a085"}
+METHODS = ["OLS_lin","OLS_kw","ARIMA","Holt","Pawl"]
+COLORS_M = {"OLS_lin":BLUE,"OLS_kw":GREEN,"ARIMA":PURPLE,"Holt":GRAY,"Pawl":"#16a085"}
 
 # ── Polska (3 zmienne) ────────────────────────────────────────
 VARS_P = {
@@ -861,7 +828,7 @@ for col,(label,_) in VARS_P.items():
     res = forecast_all(dp_tr[col].values, t_tr_p, dp_te[col].values, t_te_p, t_fc)
     best = best_method(res)
     res_p[col] = res
-    print(f"\n  {col}: najlepsza={best}  RMSPE={res[best]['rmspe']:.2f}%  FC2025={res[best]['pred_fc'][0]:,.3f}")
+    print(f"\n  {col}: najlepsza={best}  RMSPE={res[best]['rmspe']:.2f}%  FC{FC_YR}={res[best]['pred_fc'][0]:,.3f}")
     for mth,v in res.items():
         print(f"    {mth:<10} RMSPE={v['rmspe']:6.2f}%  MAPE={v['mape']:6.2f}%{'  ◄' if mth==best else ''}")
 
@@ -885,34 +852,42 @@ for i,row in enumerate(rows_rp,1):
         bc=best_method(res_p[col]); val=res_p[col][METHODS[i-1]]["rmspe"]
         if METHODS[i-1]==bc: t[i,jj].set_facecolor("#c8e6c9");t[i,jj].set_text_props(fontweight="bold")
         if val>10: t[i,jj].set_facecolor("#ffcdd2")
-ax.set_title("RMSPE% prognoz zmiennych objaśniających – Model Polska  (* = najlepsza metoda)",fontsize=11,fontweight="bold",pad=10)
+ax.set_title(f"RMSPE% ex-post prognoz zmiennych X – Model Polska (2004–{TRAIN_END})  (* = najlepsza metoda)",fontsize=11,fontweight="bold",pad=10)
 plt.tight_layout(); save("z4_01_polska_rmspe.png")
 
-# PNG 02-04 – wykresy per zmienna Polska
+# PNG 02-04 – wykresy per zmienna Polska (dopasowanie 2004–TRAIN_END + ex-ante FC_YR)
 for (col,(label,_)),fname in zip(VARS_P.items(),["z4_02_polska_pkb.png","z4_03_polska_cena.png","z4_04_polska_hdd.png"]):
     best=best_method(res_p[col])
     fig,(ax1,ax2)=plt.subplots(1,2,figsize=(18,6),gridspec_kw={"width_ratios":[3,1]})
     fig.suptitle(f"Prognoza {label} – Polska  [najlepsza: {best}]",fontsize=12,fontweight="bold")
-    ax1.plot(df_p["rok"],df_p[col],"o-",color=BLUE,lw=2.2,ms=7,zorder=6,label="Rzeczywiste")
+    ax1.plot(t_tr_p, dp_tr[col].values,"o-",color=BLUE,lw=2.2,ms=7,zorder=6,label=f"Rzeczywiste (2004–{TRAIN_END})")
     for mth in METHODS:
         v=res_p[col][mth]; clr=COLORS_M[mth]; is_best=(mth==best)
-        ax1.plot(np.append(t_te_p,t_fc),np.append(v["pred_test"],v["pred_fc"]),
-                 "s" if is_best else ".",linestyle="-" if is_best else "--",color=clr,
-                 lw=2.5 if is_best else 1.2,alpha=1.0 if is_best else 0.5,
-                 ms=8 if is_best else 4,label=f"{mth} ({v['rmspe']:.1f}%)")
-    ax1.axvline(TRAIN_END+0.5,color=GRAY,ls=":",lw=1.5); ax1.set_xlabel("Rok"); ax1.set_ylabel(label)
+        fit_v=v["fitted"]; valid=~np.isnan(fit_v)
+        # krzywa dopasowania na próbie uczącej
+        ax1.plot(t_tr_p[valid],fit_v[valid],
+                 "-" if is_best else "--",color=clr,
+                 lw=2.2 if is_best else 1.0,alpha=1.0 if is_best else 0.45,
+                 label=f"{mth} RMSPE={v['rmspe']:.1f}%")
+        # punkt ex-ante
+        ax1.plot(t_fc, v["pred_fc"],
+                 "^" if is_best else "v",color=clr,
+                 ms=10 if is_best else 6,alpha=1.0 if is_best else 0.55,zorder=5)
+    ax1.axvline(TRAIN_END+0.5,color=GRAY,ls=":",lw=1.5)
+    ax1.set_xlabel("Rok"); ax1.set_ylabel(label)
     ax1.legend(fontsize=8,loc="upper left",ncol=2); ax1.xaxis.set_major_locator(mticker.MultipleLocator(4))
     ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,_: f"{x:,.2f}" if x<10 else f"{x:,.0f}"))
     tbl_d=[[mth,f"{res_p[col][mth]['rmspe']:.2f}%","✓" if res_p[col][mth]['rmspe']<=10 else "✗"] for mth in METHODS]
     ax2.axis("off")
-    t2=ax2.table(cellText=tbl_d,colLabels=["Metoda","RMSPE%","≤10%?"],cellLoc="center",loc="center",bbox=[0,0,1,1])
+    t2=ax2.table(cellText=tbl_d,colLabels=["Metoda",f"RMSPE% (2004–{TRAIN_END})","≤10%?"],
+                 cellLoc="center",loc="center",bbox=[0,0,1,1])
     t2.auto_set_font_size(False);t2.set_fontsize(10)
     for j in range(3): t2[0,j].set_facecolor("#1a5c96");t2[0,j].set_text_props(color="white",fontweight="bold")
     for i,row in enumerate(tbl_d,1):
         ok2=row[2]=="✓"
         bg="#c8e6c9" if METHODS[i-1]==best else ("#dff0d8" if ok2 else "#ffcdd2")
         for j in range(3): t2[i,j].set_facecolor(bg)
-    ax2.set_title(f"FC 2025 = {res_p[col][best]['pred_fc'][0]:,.2f}",fontsize=10,pad=6)
+    ax2.set_title(f"FC {FC_YR} = {res_p[col][best]['pred_fc'][0]:,.2f}",fontsize=10,pad=6)
     plt.tight_layout(); save(fname)
 
 # ── Województwa (6 zmiennych, per province) ───────────────────
@@ -929,9 +904,11 @@ for col,(label,_) in VARS_W.items():
     res_w[col]={}; rmspe_list=[]
     for prov in PROV:
         dp=df_w[df_w["wojewodztwo"]==prov].sort_values("rok")
-        y_tr2=dp[dp["rok"]<=TRAIN_END][col].values; y_te2=dp[dp["rok"].isin(TEST_YRS)][col].values
-        t_tr2=dp[dp["rok"]<=TRAIN_END]["rok"].values; t_te2=dp[dp["rok"].isin(TEST_YRS)]["rok"].values
-        if len(y_te2)==0 or np.any(np.isnan(y_te2)) or len(y_tr2)<5:
+        y_tr2=dp[dp["rok"]<=TRAIN_END][col].values
+        t_tr2=dp[dp["rok"]<=TRAIN_END]["rok"].values
+        y_te2=dp[dp["rok"].isin(TEST_YRS)][col].values  # tylko do wizualizacji
+        t_te2=dp[dp["rok"].isin(TEST_YRS)]["rok"].values
+        if len(y_tr2)<5 or np.any(np.isnan(y_tr2)):
             res_w[col][prov]=None; continue
         r=forecast_all(y_tr2,t_tr2,y_te2,t_te2,t_fc); res_w[col][prov]=r
         rmspe_list.append(r[best_method(r)]["rmspe"])
@@ -961,36 +938,99 @@ for i in range(1,len(rmspe_rows)+1):
     bg="#f0f5ff" if i%2==0 else "white"
     for j in range(len(col_lw)): t[i,j].set_facecolor(bg)
 for j in range(len(col_lw)): t[len(rmspe_rows),j].set_facecolor("#c8e6c9");t[len(rmspe_rows),j].set_text_props(fontweight="bold")
-ax.set_title("Średnia RMSPE% prognoz zmiennych – Model FE Województwa",fontsize=10,fontweight="bold",pad=10)
+ax.set_title(f"Średnia RMSPE% ex-post (2004–{TRAIN_END}) prognoz zmiennych X – Model FE Województwa",fontsize=10,fontweight="bold",pad=10)
 plt.tight_layout(); save("z4_05_woj_rmspe.png")
 
-# PNG 06-08 – wykresy prognoz województw
-SHOW_PROV = ["mazowieckie","śląskie","małopolskie","wielkopolskie"]
-for col,fname,label in [("dochod_os","z4_06_woj_dochod.png","Dochód na osobę [PLN]"),
-                         ("cena_energii_zl_kWh","z4_07_woj_cena.png","Cena energii [PLN/kWh]"),
-                         ("hdd","z4_08_woj_hdd.png","HDD")]:
-    fig,axes=plt.subplots(1,4,figsize=(22,6))
-    fig.suptitle(f"Prognoza: {label} – wybrane województwa",fontsize=12,fontweight="bold")
-    for ax,prov in zip(axes,SHOW_PROV):
-        dp=df_w[df_w["wojewodztwo"]==prov].sort_values("rok")
-        ax.plot(dp["rok"],dp[col],"o-",color=BLUE,lw=2,ms=5,label="Rzecz.")
-        r=res_w[col].get(prov)
-        if r is not None:
-            best=best_method(r); dp_te_w=dp[dp["rok"].isin(TEST_YRS)]
-            ax.plot(np.append(dp_te_w["rok"].values,t_fc),np.append(r[best]["pred_test"],r[best]["pred_fc"]),
-                    "^--",color=RED,lw=2,ms=7,label=f"{best} ({r[best]['rmspe']:.1f}%)")
-        ax.axvline(TRAIN_END+0.5,color=GRAY,ls=":",lw=1.2); ax.set_title(prov,fontsize=10,fontweight="bold")
-        ax.set_xlabel("Rok")
-        if list(axes).index(ax)==0: ax.set_ylabel(label)
-        ax.legend(fontsize=8); ax.xaxis.set_major_locator(mticker.MultipleLocator(5))
-        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,_: f"{x:,.1f}" if x<10 else f"{x:,.0f}"))
-    plt.tight_layout(); save(fname)
+# PNG 06 – Miary jakości prognoz zmiennych X – Polska (najlepsza metoda, in-sample 2004–TRAIN_END)
+m_keys_z4 = ["ME","MPE","MAE","MAPE","RMSE","RMSPE","TheilU","UM","UV","UC"]
+m_labs_z4  = ["ME","MPE%","MAE","MAPE%","RMSE","RMSPE%","TheilU","UM","UV","UC"]
+best_labels_p = {col: best_method(res_p[col]) for col in VARS_P}
+col_hdrs_z4 = ["Miara"] + [f"{VARS_P[c][0].split(' [')[0]}\n(met. {best_labels_p[c]})" for c in VARS_P]
+miary_rows_z4 = []
+for mk, ml in zip(m_keys_z4, m_labs_z4):
+    row = [ml]
+    for col in VARS_P:
+        best = best_labels_p[col]
+        ms = res_p[col][best].get("ms", {})
+        val = ms.get(mk, float("nan"))
+        if mk in ("MPE","MAPE","RMSPE"):
+            row.append(f"{val:.2f}%")
+        elif mk in ("TheilU","UM","UV","UC"):
+            row.append(f"{val:.4f}")
+        else:
+            row.append(f"{val:.2f}")
+    miary_rows_z4.append(row)
+fig, ax = plt.subplots(figsize=(16, 6)); ax.axis("off")
+t = ax.table(cellText=miary_rows_z4, colLabels=col_hdrs_z4, cellLoc="center", loc="center", bbox=[0,0,1,1])
+t.auto_set_font_size(False); t.set_fontsize(10)
+for j in range(len(col_hdrs_z4)):
+    t[0,j].set_facecolor("#1a5c96"); t[0,j].set_text_props(color="white", fontweight="bold")
+rmspe_row_idx = m_keys_z4.index("RMSPE")
+for i in range(1, len(m_keys_z4)+1):
+    bg = "#f0f5ff" if i % 2 == 0 else "white"
+    for j in range(len(col_hdrs_z4)): t[i,j].set_facecolor(bg)
+for j in range(1, len(col_hdrs_z4)):
+    t[rmspe_row_idx+1, j].set_facecolor("#c8e6c9"); t[rmspe_row_idx+1, j].set_text_props(fontweight="bold")
+ax.set_title(f"Miary jakości prognoz zmiennych X – Model Polska (najlepsza metoda, in-sample 2004–{TRAIN_END})  |  TheilU: UM=obciążoność, UV=wahania, UC=kierunek",
+             fontsize=10, fontweight="bold", pad=10)
+plt.tight_layout(); save("z4_06_polska_miary_x.png")
 
-# Pickle dla dashboardu
-with open(os.path.join(SCRIPT_DIR,"z4_results.pkl"),"wb") as f:
-    pickle.dump({"polska":res_p,"woj":res_w,"prov":PROV,"t_fc":t_fc},f)
-print("  Wyniki Z4 zapisane: z4_results.pkl")
-print("  Z4: pliki z4_01..z4_08_*.png gotowe")
+# ── Analiza trafności Z4: prognozy X na FC_YR vs wartości rzeczywiste ──
+print(f"\n[Analiza trafności Z4 – prognoza X na {FC_YR} vs rzeczywiste]")
+df_fc_act = df_p[df_p["rok"] == FC_YR]  # rzeczywiste wartości X dla roku FC_YR
+trafnosc_p_rows = []
+for col, (label, _) in VARS_P.items():
+    best = best_method(res_p[col])
+    y_fc  = float(res_p[col][best]["pred_fc"][0])
+    if len(df_fc_act) > 0 and col in df_fc_act.columns:
+        y_real = float(df_fc_act[col].values[0])
+        blad   = y_fc - y_real
+        blad_w = (y_fc - y_real) / y_real * 100
+        print(f"  {col:<28} metoda={best:<10} prognoza={y_fc:>12,.3f}  rzecz.={y_real:>12,.3f}  błąd={blad:>+12,.3f}  błąd%={blad_w:>+7.2f}%")
+        trafnosc_p_rows.append([label.split(" [")[0], best, f"{y_fc:,.3f}", f"{y_real:,.3f}", f"{blad:+,.3f}", f"{blad_w:+.2f}%"])
+    else:
+        print(f"  {col:<28} metoda={best:<10} prognoza={y_fc:>12,.3f}  brak danych rzeczywistych")
+        trafnosc_p_rows.append([label.split(" [")[0], best, f"{y_fc:,.3f}", "—", "—", "—"])
+
+df_fc_act_w = df_w[df_w["rok"] == FC_YR]
+trafnosc_w_rows = []
+for col, (label, _) in VARS_W.items():
+    fc_vals = []; real_vals = []
+    for prov in PROV:
+        r = res_w[col].get(prov)
+        if r is None: continue
+        best = best_method(r)
+        fc_vals.append(float(r[best]["pred_fc"][0]))
+        row_r = df_fc_act_w[df_fc_act_w["wojewodztwo"] == prov]
+        if len(row_r) > 0 and col in row_r.columns:
+            real_vals.append(float(row_r[col].values[0]))
+    if fc_vals and real_vals and len(fc_vals) == len(real_vals):
+        bledy_w = [(f-r)/r*100 for f,r in zip(fc_vals, real_vals)]
+        med_blad = float(np.median(bledy_w))
+        mean_blad = float(np.mean(bledy_w))
+        print(f"  {col:<28} mediana_błąd%={med_blad:>+7.2f}%  średnia_błąd%={mean_blad:>+7.2f}%")
+        trafnosc_w_rows.append([label.split(" [")[0], f"{med_blad:+.2f}%", f"{mean_blad:+.2f}%", f"{len(fc_vals)}"])
+    else:
+        trafnosc_w_rows.append([label.split(" [")[0], "—", "—", f"{len(fc_vals)}"])
+
+# PNG 09 – Tabela trafności X Polska
+if trafnosc_p_rows:
+    fig, ax = plt.subplots(figsize=(16, 3)); ax.axis("off")
+    t = ax.table(cellText=trafnosc_p_rows,
+                 colLabels=["Zmienna", "Metoda", f"Prognoza {FC_YR}", f"Rzeczywiste {FC_YR}", "Błąd abs.", "Błąd wzgl."],
+                 cellLoc="center", loc="center", bbox=[0, 0, 1, 1])
+    t.auto_set_font_size(False); t.set_fontsize(10)
+    for j in range(6): t[0,j].set_facecolor("#1a5c96"); t[0,j].set_text_props(color="white", fontweight="bold")
+    for i, row in enumerate(trafnosc_p_rows, 1):
+        ok_r = row[5] != "—" and abs(float(row[5].replace("%","").replace("+",""))) <= 5
+        bg = "#e8f5e9" if ok_r else "#fff8e1"
+        for j in range(6): t[i,j].set_facecolor(bg)
+        if row[5] != "—": t[i,5].set_facecolor("#c8e6c9" if ok_r else "#ffcdd2"); t[i,5].set_text_props(fontweight="bold")
+    ax.set_title(f"Analiza trafności prognoz zmiennych X – Model Polska (prognoza {FC_YR} vs rzeczywiste {FC_YR})",
+                 fontsize=11, fontweight="bold", pad=10)
+    plt.tight_layout(); save("z4_09_trafnosc_x_polska.png")
+
+print(f"  Z4: pliki z4_01..z4_09_*.png gotowe")
 
 
 # ╔══════════════════════════════════════════════════════════════╗
@@ -1005,35 +1045,6 @@ best_pkb  = best_method(res_p["pkb_per_capita"])
 best_cena = best_method(res_p["cena_energii_zl_kWh"])
 best_hdd  = best_method(res_p["hdd"])
 print(f"  PKB_pc→{best_pkb}  CENA→{best_cena}  HDD→{best_hdd}")
-
-# Krocząca prognoza warunkowa Polska (predicted X, model re-estymowany co rok)
-def _fc1(col_name, t_ev, method_name):
-    """1-krokowa prognoza zmiennej col_name na rok t_ev metodą method_name."""
-    dtr = df_p[df_p["rok"] < t_ev]
-    res_1 = forecast_all(dtr[col_name].values, dtr["rok"].values,
-                          np.zeros(1), np.array([t_ev], float), np.array([t_ev+1], float))
-    return float(res_1[method_name]["pred_test"][0])
-
-roll_p_cond = []
-for t_ev in EVAL_YEARS:
-    dtr_r = df_p[df_p["rok"] < t_ev]
-    dte_r = df_p[df_p["rok"] == t_ev]
-    if len(dtr_r) < 5: continue
-    y_r  = dtr_r["ln_zuzycie"].values
-    X_r  = np.column_stack([np.ones(len(dtr_r)), dtr_r[X_P].values])
-    m_r  = sm.OLS(y_r, X_r).fit()
-    pkb_hat  = _fc1("pkb_per_capita",      t_ev, best_pkb)
-    cena_hat = _fc1("cena_energii_zl_kWh", t_ev, best_cena)
-    hdd_hat  = _fc1("hdd",                 t_ev, best_hdd)
-    X_cond_r = np.array([[1.0, np.log(max(pkb_hat, 1.0)), np.log(max(cena_hat, 1e-6)), hdd_hat]])
-    y_hat_r  = np.exp(float(m_r.predict(X_cond_r)[0]))
-    y_act_r  = float(dte_r["zuzycie_energii_GWh"].values[0])
-    roll_p_cond.append({"rok": t_ev, "y_act": y_act_r, "y_hat": y_hat_r})
-
-y_act_rc = np.array([r["y_act"] for r in roll_p_cond])
-y_hat_rc = np.array([r["y_hat"] for r in roll_p_cond])
-ms5_p_roll = miary(y_act_rc, y_hat_rc)
-print(f"  Rolling warunkowa ({EVAL_START}–2024, n={len(roll_p_cond)}): RMSPE%={ms5_p_roll['RMSPE%']:.2f}%")
 
 def build_X_polska(pkb_v, cena_v, hdd_v):
     n=len(pkb_v)
@@ -1061,60 +1072,29 @@ X_bench=pd.DataFrame({"const":np.ones(len(dp_te)),"ln_pkb_pc":dp_te["ln_pkb_pc"]
                         "ln_cena":dp_te["ln_cena"].values,"hdd":dp_te["hdd"].values})
 ms5_bench=miary(y_act_te_p, np.exp(np.asarray(model_p.predict(X_bench)).ravel()))
 
-print(f"  Warunkowa (rolling {EVAL_START}–2024): RMSPE%={ms5_p_roll['RMSPE%']:.2f}%")
-print(f"  Benchmark ex-post (model+rzecz. X): RMSPE%={ms_p_roll['RMSPE']:.2f}%")
-print(f"  Ex-ante 2025: {y_hat_fc_p[0]:,.0f} GWh  95%CI [{y_ci_fc_lo[0]:,.0f}–{y_ci_fc_hi[0]:,.0f}]")
+print(f"  Ex-post (rzecz. X, {TEST_YRS[0]}–{TEST_YRS[-1]}): RMSPE%={ms5_bench['RMSPE%']:.2f}%")
+print(f"  Ex-post (prog. X, {TEST_YRS[0]}–{TEST_YRS[-1]}): RMSPE%={ms5_p['RMSPE%']:.2f}%")
+print(f"  Ex-ante {FC_YR}: {y_hat_fc_p[0]:,.0f} GWh  95%CI [{y_ci_fc_lo[0]:,.0f}–{y_ci_fc_hi[0]:,.0f}]")
 
-# PNG 01 – Prognoza Polska (krocząca warunkowa + ex-ante)
-roks_rc=[r["rok"] for r in roll_p_cond]
-yhat_rc_list=[r["y_hat"] for r in roll_p_cond]
-yact_rc_list=[r["y_act"] for r in roll_p_cond]
-fig,ax=plt.subplots(figsize=(14,7))
-ax.plot(df_p[df_p["rok"]<EVAL_START]["rok"],
-        df_p[df_p["rok"]<EVAL_START]["zuzycie_energii_GWh"],
-        "o-",color=BLUE,lw=2.2,ms=7,label="Historyczne (próba ucząca)")
-ax.plot(df_p[df_p["rok"]>=EVAL_START]["rok"],
-        df_p[df_p["rok"]>=EVAL_START]["zuzycie_energii_GWh"],
-        "o",color=BLUE,ms=7,markerfacecolor="white",markeredgewidth=2)
-ax.plot(roks_rc, yhat_rc_list, "s-", color=RED, lw=2, ms=8,
-        label=f"Krocząca prognoza warunkowa {EVAL_START}–2024  RMSPE={ms5_p_roll['RMSPE%']:.1f}%")
-ax.fill_between(roks_rc, yact_rc_list, yhat_rc_list, alpha=0.12, color=RED)
+# PNG 01 – Prognoza Polska (dopasowanie in-sample + ex-ante)
+fig, ax = plt.subplots(figsize=(14, 7))
+ax.plot(df_p[df_p["rok"]<=TRAIN_END]["rok"],
+        df_p[df_p["rok"]<=TRAIN_END]["zuzycie_energii_GWh"],
+        "o-", color=BLUE, lw=2.2, ms=7, label=f"Dane historyczne (2004–{TRAIN_END})")
+ax.plot(dp_tr["rok"].values, np.exp(model_p.fittedvalues),
+        "s--", color=GREEN, lw=1.8, ms=5, alpha=0.85,
+        label=f"Dopasowanie in-sample  RMSPE={ms_p_tr['RMSPE']:.1f}%")
 ax.errorbar(FC_YR, y_hat_fc_p[0],
             yerr=[[y_hat_fc_p[0]-y_ci_fc_lo[0]], [y_ci_fc_hi[0]-y_hat_fc_p[0]]],
             fmt="^", color=ORANGE, ms=13, lw=2.5,
-            label=f"Ex-ante 2025 = {y_hat_fc_p[0]:,.0f} GWh  95%CI [{y_ci_fc_lo[0]:,.0f}–{y_ci_fc_hi[0]:,.0f}]")
-ax.axvline(EVAL_START-0.5, color=GRAY, ls=":", lw=1.8, alpha=0.7)
-ax.text(EVAL_START-0.4, df_p["zuzycie_energii_GWh"].min()*0.985,
-        "← Próba ucząca | Weryfikacja → | Ex-ante →", color=GRAY, fontsize=9)
-ax.set_title(f"Model Polska – krocząca prognoza warunkowa ({EVAL_START}–2024) i ex-ante 2025",
+            label=f"Ex-ante {FC_YR} = {y_hat_fc_p[0]:,.0f} GWh  95%CI [{y_ci_fc_lo[0]:,.0f}–{y_ci_fc_hi[0]:,.0f}]")
+ax.axvline(TRAIN_END+0.5, color=GRAY, ls=":", lw=1.8, alpha=0.7)
+ax.set_title(f"Model Polska – dopasowanie in-sample (2004–{TRAIN_END}) i prognoza ex-ante {FC_YR}",
              fontsize=11, fontweight="bold")
 ax.set_xlabel("Rok"); ax.set_ylabel("Zużycie energii elektrycznej [GWh]")
-ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,_: f"{x:,.0f}"))
+ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
 ax.legend(loc="upper left", fontsize=9); ax.xaxis.set_major_locator(mticker.MultipleLocator(4))
 plt.tight_layout(); save("z5_01_polska_prognoza.png")
-
-# PNG 02 – Miary Polska
-m_cols=["ME","MPE%","MAE","MAPE%","RMSE","RMSPE%","TheilU"]
-rows_m5=[
-    [f"Ex-post benchmark (rzecz. X, {EVAL_START}–2024)"]+
-     [f"{miary(y_act_rp,y_hat_rp)[k]:.4f}" if k!="RMSPE%" else f"{ms_p_roll['RMSPE']:.2f}%" for k in m_cols],
-    [f"Prognoza warunkowa (pred. X, {EVAL_START}–2024)"]+
-     [f"{ms5_p_roll[k]:.4f}" if k!="RMSPE%" else f"{ms5_p_roll[k]:.2f}%" for k in m_cols],
-    ["Ex-ante 2025"]+[f"{y_hat_fc_p[0]:,.0f} GWh",
-     f"95% CI: [{y_ci_fc_lo[0]:,.0f}–{y_ci_fc_hi[0]:,.0f}]","—","—","—","—","—"],
-]
-cols_m5=["Model"]+m_cols
-fig,ax=plt.subplots(figsize=(20,3.8)); ax.axis("off")
-t=ax.table(cellText=rows_m5,colLabels=cols_m5,cellLoc="center",loc="center",bbox=[0,0,1,1])
-t.auto_set_font_size(False);t.set_fontsize(9)
-for j in range(len(cols_m5)): t[0,j].set_facecolor("#1a5c96");t[0,j].set_text_props(color="white",fontweight="bold")
-for j in range(len(cols_m5)): t[1,j].set_facecolor("#f0f5ff")
-rci=m_cols.index("RMSPE%")+1; ok5=ms5_p_roll["RMSPE%"]<=10
-t[2,rci].set_facecolor("#c8e6c9" if ok5 else "#ffcdd2");t[2,rci].set_text_props(fontweight="bold")
-for j in range(len(cols_m5)): t[2,j].set_facecolor("#e8f5e9" if ok5 else "#fff8e1")
-for j in range(len(cols_m5)): t[3,j].set_facecolor("#fff3cd")
-ax.set_title("Model Polska – miary jakości prognozy warunkowej (test 2023–2024)",fontsize=11,fontweight="bold",pad=10)
-plt.tight_layout(); save("z5_02_polska_miary.png")
 
 # ── Model FE – Województwa ────────────────────────────────────
 COL_MAP={"cena_energii_zl_kWh":"cena_energii_zl_kWh","urbanizacja_pct":"urbanizacja_pct",
@@ -1163,19 +1143,16 @@ for prov in PROV:
     y_act_te5=dp_te_w["zuzycie_energii_GWh"].values
     se2=mse_fe*(1+float(np.squeeze(X_pred[2:3]@XtXinv@X_pred[2:3].T))); se=np.sqrt(max(se2,0))
     ci_lo5=np.exp(ln_hat[2]-1.96*se); ci_hi5=np.exp(ln_hat[2]+1.96*se)
-    rmspe_roll_prov = prov_roll_rmspe.get(prov, rmspe_fn(y_act_te5, y_hat_te5))
     ms5 = miary(y_act_te5, y_hat_te5)
-    ms5["RMSPE%"] = rmspe_roll_prov  # zastąp rolling RMSPE%
     prov_results[prov]={"y_hat_te":y_hat_te5,"y_act_te":y_act_te5,"y_hat_fc":y_hat_fc5,
                          "ci_lo":ci_lo5,"ci_hi":ci_hi5,"ms":ms5}
-    print(f"  {prov:<25} RMSPE(roll)={rmspe_roll_prov:6.2f}%  FC2025={y_hat_fc5:,.0f}")
+    print(f"  {prov:<25} RMSPE%={ms5['RMSPE%']:6.2f}%  FC{FC_YR}={y_hat_fc5:,.0f}")
 
 good5=sum(1 for v in prov_results.values() if v["ms"]["RMSPE%"]<=10)
 all_rmspe5=[v["ms"]["RMSPE%"] for v in prov_results.values()]
 fc_2025_polska=float(y_hat_fc_p[0])
 fc_2025_woj_sum=sum(v["y_hat_fc"] for v in prov_results.values())
-ms5_agg={"RMSPE%": ms_fe_roll["RMSPE"]}  # rolling aggregate
-print(f"  Woj≤10%: {good5}/16  med={np.median(all_rmspe5):.2f}%  agregat RMSPE={ms_fe_roll['RMSPE']:.2f}%")
+print(f"  Woj≤10%: {good5}/16  med={np.median(all_rmspe5):.2f}%  agregat RMSPE in-sample={ms_fe_tr['RMSPE']:.2f}%")
 
 # PNG 03 – Siatka 4×4 prognoza per woj.
 fig,axes=plt.subplots(4,4,figsize=(24,18))
@@ -1187,7 +1164,7 @@ for i,(ax,prov) in enumerate(zip(axes.flat,PROV)):
     if r is not None:
         ax.plot(TEST_YRS,r["y_hat_te"],"s--",color=RED,lw=2,ms=7)
         ax.errorbar(FC_YR,r["y_hat_fc"],yerr=[[r["y_hat_fc"]-r["ci_lo"]],[r["ci_hi"]-r["y_hat_fc"]]],
-                    fmt="^",color=ORANGE,ms=9,lw=2,label=f"2025={r['y_hat_fc']:,.0f}")
+                    fmt="^",color=ORANGE,ms=9,lw=2,label=f"{FC_YR}={r['y_hat_fc']:,.0f}")
         rms=r["ms"]["RMSPE%"]; mark="✓" if rms<=10 else "✗"
         ax.set_title(f"{prov}  {mark} {rms:.1f}%",fontsize=8,fontweight="bold")
     else: ax.set_title(prov,fontsize=8)
@@ -1206,9 +1183,11 @@ for prov in PROV:
     if r is None: continue
     ms=r["ms"]; ok5w="✓" if ms["RMSPE%"]<=10 else "✗"
     tbl5.append([prov,ok5w,f"{ms['ME']:.0f}",f"{ms['MPE%']:.1f}%",f"{ms['MAE']:.0f}",
-                 f"{ms['MAPE%']:.1f}%",f"{ms['RMSE']:.0f}",f"{ms['RMSPE%']:.1f}%",f"{r['y_hat_fc']:,.0f}"])
-tbl5_cols=["Województwo","OK?","ME","MPE%","MAE","MAPE%","RMSE","RMSPE%","FC 2025 [GWh]"]
-fig,ax=plt.subplots(figsize=(20,9)); ax.axis("off")
+                 f"{ms['MAPE%']:.1f}%",f"{ms['RMSE']:.0f}",f"{ms['RMSPE%']:.1f}%",
+                 f"{ms.get('UM',float('nan')):.3f}",f"{ms.get('UV',float('nan')):.3f}",f"{ms.get('UC',float('nan')):.3f}",
+                 f"{r['y_hat_fc']:,.0f}"])
+tbl5_cols=["Województwo","OK?","ME","MPE%","MAE","MAPE%","RMSE","RMSPE%","UM","UV","UC",f"FC {FC_YR} [GWh]"]
+fig,ax=plt.subplots(figsize=(26,9)); ax.axis("off")
 t=ax.table(cellText=tbl5,colLabels=tbl5_cols,cellLoc="center",loc="center",bbox=[0,0,1,1])
 t.auto_set_font_size(False);t.set_fontsize(9)
 for j in range(len(tbl5_cols)): t[0,j].set_facecolor("#1a5c96");t[0,j].set_text_props(color="white",fontweight="bold")
@@ -1216,41 +1195,79 @@ for i,row in enumerate(tbl5,1):
     ok5r=row[1]=="✓"; bg="#e8f5e9" if ok5r else "#fff8e1"
     for j in range(len(tbl5_cols)): t[i,j].set_facecolor(bg)
     ri=tbl5_cols.index("RMSPE%"); t[i,ri].set_facecolor("#c8e6c9" if ok5r else "#ffcdd2"); t[i,ri].set_text_props(fontweight="bold")
-ax.set_title("Model FE – miary jakości prognozy warunkowej per województwo (test 2023–2024)",fontsize=11,fontweight="bold",pad=10)
+ax.set_title(f"Model FE – miary jakości prognozy warunkowej per województwo (in-sample 2004–{TRAIN_END})",fontsize=11,fontweight="bold",pad=10)
 plt.tight_layout(); save("z5_04_woj_miary.png")
 
-# PNG 05 – Porównanie modeli + barplot 2025
-sum_hist=(df_w.groupby("rok")["zuzycie_energii_GWh"].sum().reset_index().rename(columns={"zuzycie_energii_GWh":"suma"}))
-sum_te_act=dw_te.groupby("rok")["zuzycie_energii_GWh"].sum().reindex(TEST_YRS).values
-sum_te_hat=np.array([sum(v["y_hat_te"][i] for v in prov_results.values()) for i in range(2)])
-fig,axes=plt.subplots(1,2,figsize=(18,7))
-fig.suptitle("Prognoza zużycia energii – porównanie modeli (2025)",fontsize=13,fontweight="bold")
-ax=axes[0]
-ax.plot(sum_hist["rok"],sum_hist["suma"],"o-",color=BLUE,lw=2,ms=6,label="Rzeczywiste (suma woj.)")
-ax.plot(TEST_YRS,sum_te_act,"o-",color=BLUE,lw=2,ms=6,markerfacecolor="white",markeredgewidth=2)
-ax.plot(TEST_YRS,sum_te_hat,"s--",color=RED,lw=2,ms=7,label=f"Prog. FE  RMSPE(roll)={ms_fe_roll['RMSPE']:.1f}%")
-ax.errorbar(FC_YR,fc_2025_woj_sum,fmt="^",color=RED,ms=11,lw=2,label=f"FC 2025 FE={fc_2025_woj_sum:,.0f}")
-ax.plot(df_p["rok"],df_p["zuzycie_energii_GWh"],"o:",color=GREEN,lw=1.5,ms=4,alpha=0.6)
-ax.plot(roks_rc,yhat_rc_list,"D-",color=GREEN,lw=1.5,ms=6,label=f"Prog. Polska (roll)  RMSPE={ms5_p_roll['RMSPE%']:.1f}%")
-ax.errorbar(FC_YR,fc_2025_polska,fmt="D",color=GREEN,ms=10,lw=2,label=f"FC 2025 Polska={fc_2025_polska:,.0f}")
-ax.axvline(TRAIN_END+0.5,color=GRAY,ls=":",lw=1.5)
-ax.set_xlabel("Rok"); ax.set_ylabel("GWh")
+# ── Analiza trafności ex-ante: prognoza Y na FC_YR vs rzeczywiste ──────────
+y_real_p_fc  = df_p.loc[df_p["rok"]==FC_YR, "zuzycie_energii_GWh"]
+y_real_w_fc  = df_w[df_w["rok"]==FC_YR].groupby("rok")["zuzycie_energii_GWh"].sum()
+has_real_fc  = len(y_real_p_fc) > 0
+
+print(f"\n[Analiza trafności ex-ante – prognoza Y na {FC_YR} vs rzeczywiste]")
+if has_real_fc:
+    y_real_p = float(y_real_p_fc.values[0])
+    blad_p   = fc_2025_polska  - y_real_p
+    blad_p_w = blad_p / y_real_p * 100
+    y_real_w = float(y_real_w_fc.values[0]) if len(y_real_w_fc) > 0 else float("nan")
+    blad_w_m = fc_2025_woj_sum - y_real_w
+    blad_w_w = blad_w_m / y_real_w * 100 if y_real_w > 0 else float("nan")
+    print(f"  Model Polska  : prognoza={fc_2025_polska:,.0f}  rzeczywiste={y_real_p:,.0f}  "
+          f"błąd={blad_p:+,.0f} GWh  błąd%={blad_p_w:+.2f}%")
+    print(f"  Model FE (woj): prognoza={fc_2025_woj_sum:,.0f}  rzeczywiste={y_real_w:,.0f}  "
+          f"błąd={blad_w_m:+,.0f} GWh  błąd%={blad_w_w:+.2f}%")
+else:
+    y_real_p = y_real_w = float("nan")
+    blad_p = blad_p_w = blad_w_m = blad_w_w = float("nan")
+    print(f"  Brak danych rzeczywistych za {FC_YR} – analiza trafności niemożliwa.")
+
+# PNG 05 – Wykres danych 2004–TRAIN_END + prognoza FC_YR vs rzeczywiste FC_YR
+fig, ax = plt.subplots(figsize=(14, 7))
+ax.plot(df_p[df_p["rok"]<=TRAIN_END]["rok"],
+        df_p[df_p["rok"]<=TRAIN_END]["zuzycie_energii_GWh"],
+        "o-", color=BLUE, lw=2.2, ms=7, label=f"Dane historyczne (2004–{TRAIN_END})")
+ax.errorbar(FC_YR, fc_2025_polska,
+            yerr=[[fc_2025_polska-y_ci_fc_lo[0]], [y_ci_fc_hi[0]-fc_2025_polska]],
+            fmt="^", color=GREEN, ms=13, lw=2.5,
+            label=f"Prognoza OLS {FC_YR} = {fc_2025_polska:,.0f} GWh  95%CI [{y_ci_fc_lo[0]:,.0f}–{y_ci_fc_hi[0]:,.0f}]")
+ax.errorbar(FC_YR+0.15, fc_2025_woj_sum, fmt="s", color=RED, ms=11, lw=2,
+            label=f"Prognoza FE {FC_YR} = {fc_2025_woj_sum:,.0f} GWh")
+if has_real_fc and not np.isnan(y_real_p):
+    ax.plot(FC_YR, y_real_p, "D", color=ORANGE, ms=14, zorder=10,
+            label=f"Rzeczywiste {FC_YR} = {y_real_p:,.0f} GWh")
+ax.axvline(TRAIN_END+0.5, color=GRAY, ls=":", lw=1.8, alpha=0.7)
+ax.set_xlabel("Rok"); ax.set_ylabel("Zużycie energii elektrycznej [GWh]")
 ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,_: f"{x:,.0f}"))
-ax.legend(fontsize=8,loc="upper left"); ax.xaxis.set_major_locator(mticker.MultipleLocator(4))
-ax.set_title("Rzeczywiste vs prognoza (2023–2025)")
-ax2=axes[1]
-pn=list(prov_results.keys()); fv=[prov_results[p]["y_hat_fc"] for p in pn]
-si=np.argsort(fv)[::-1]; ps=[pn[i] for i in si]; fs=[fv[i] for i in si]
-clo_s=[fv[i]-prov_results[pn[i]]["ci_lo"] for i in si]
-chi_s=[prov_results[pn[i]]["ci_hi"]-fv[i] for i in si]
-col_s=[GREEN if prov_results[pn[i]]["ms"]["RMSPE%"]<=10 else ORANGE for i in si]
-bars=ax2.barh(ps,fs,color=col_s,alpha=0.8,edgecolor="white")
-ax2.errorbar(fs,ps,xerr=[clo_s,chi_s],fmt="none",color="gray",lw=1.5,capsize=4)
-for bar,val in zip(bars,fs):
-    ax2.text(val+10,bar.get_y()+bar.get_height()/2,f"{val:,.0f}",va="center",fontsize=8)
-ax2.set_title("Prognoza ex-ante 2025 per województwo  (zielony=RMSPE≤10%)")
-ax2.set_xlabel("GWh"); ax2.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x,_: f"{x:,.0f}"))
-plt.tight_layout(); save("z5_05_woj_agregat.png")
+ax.xaxis.set_major_locator(mticker.MultipleLocator(4))
+ax.legend(fontsize=9, loc="upper left")
+ax.set_title(f"Prognoza zużycia energii – dane 2004–{TRAIN_END} oraz ex-ante {FC_YR}",
+             fontsize=12, fontweight="bold")
+plt.tight_layout(); save("z5_05_prognoza_exante.png")
+
+# PNG 06 – Tabela trafności ex-ante
+tbl_traf = []
+if has_real_fc and not np.isnan(y_real_p):
+    tbl_traf.append(["Model Polska (OLS)", f"{fc_2025_polska:,.0f}", f"{y_real_p:,.0f}",
+                     f"{blad_p:+,.0f}", f"{blad_p_w:+.2f}%",
+                     "✓" if abs(blad_p_w)<=5 else "✗"])
+    tbl_traf.append(["Model FE (województwa)", f"{fc_2025_woj_sum:,.0f}", f"{y_real_w:,.0f}",
+                     f"{blad_w_m:+,.0f}", f"{blad_w_w:+.2f}%",
+                     "✓" if abs(blad_w_w)<=5 else "✗"])
+    fig, ax = plt.subplots(figsize=(16, 2.5)); ax.axis("off")
+    t = ax.table(cellText=tbl_traf,
+                 colLabels=["Model", f"Prognoza {FC_YR} [GWh]", f"Rzeczywiste {FC_YR} [GWh]",
+                            "Błąd abs. [GWh]", "Błąd wzgl. [%]", "≤5%?"],
+                 cellLoc="center", loc="center", bbox=[0, 0, 1, 1])
+    t.auto_set_font_size(False); t.set_fontsize(11)
+    for j in range(6): t[0,j].set_facecolor("#1a5c96"); t[0,j].set_text_props(color="white", fontweight="bold")
+    for i, row in enumerate(tbl_traf, 1):
+        ok_r = row[5]=="✓"
+        for j in range(6): t[i,j].set_facecolor("#e8f5e9" if ok_r else "#fff8e1")
+        t[i,4].set_facecolor("#c8e6c9" if ok_r else "#ffcdd2"); t[i,4].set_text_props(fontweight="bold")
+    ax.set_title(f"Analiza trafności prognoz ex-ante {FC_YR} – zużycie energii elektrycznej [GWh]",
+                 fontsize=12, fontweight="bold", pad=10)
+    plt.tight_layout(); save("z5_06_trafnosc_exante.png")
+else:
+    print(f"  PNG 06 pominięty – brak danych rzeczywistych za {FC_YR}")
 
 # ══════════════════════════════════════════════════════════════
 # PODSUMOWANIE KOŃCOWE
@@ -1258,7 +1275,12 @@ plt.tight_layout(); save("z5_05_woj_agregat.png")
 print("\n" + "=" * 60)
 print("PODSUMOWANIE PROJEKTU")
 print("=" * 60)
-print(f"\n  Model Polska  : R²={model_p.rsquared:.4f}  RMSPE%(roll warunkowa)={ms5_p_roll['RMSPE%']:.2f}%  FC 2025={fc_2025_polska:,.0f} GWh  95%CI=[{y_ci_fc_lo[0]:,.0f}–{y_ci_fc_hi[0]:,.0f}]")
-print(f"  Model FE (woj): R²={model_fe.rsquared:.4f}  RMSPE%(roll agregat)={ms_fe_roll['RMSPE']:.2f}%  Woj≤10%={good5}/16  FC 2025={fc_2025_woj_sum:,.0f} GWh")
-print(f"\n  Pliki PNG: z2_01..09, z3_01..08, z4_01..08, z5_01..05")
+print(f"\n  Model Polska  : R²={model_p.rsquared:.4f}  RMSPE% in-sample={ms_p_tr['RMSPE']:.2f}%  "
+      f"FC {FC_YR}={fc_2025_polska:,.0f} GWh  95%CI=[{y_ci_fc_lo[0]:,.0f}–{y_ci_fc_hi[0]:,.0f}]")
+print(f"  Model FE (woj): R²={model_fe.rsquared:.4f}  RMSPE% in-sample={ms_fe_tr['RMSPE']:.2f}%  "
+      f"Woj≤10%={good5}/16  FC {FC_YR}={fc_2025_woj_sum:,.0f} GWh")
+if has_real_fc and not np.isnan(y_real_p):
+    print(f"\n  Trafność OLS  : błąd={blad_p:+,.0f} GWh  ({blad_p_w:+.2f}%)")
+    print(f"  Trafność FE   : błąd={blad_w_m:+,.0f} GWh  ({blad_w_w:+.2f}%)")
+print(f"\n  Pliki PNG: z2_01..09, z3_01..07, z4_01..06+09, z5_01+03..06")
 sys.stdout.flush()
