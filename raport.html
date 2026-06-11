@@ -1,46 +1,58 @@
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
 <title>Raport</title>
+
 <style>
-  body { font-family: Segoe UI, Arial, sans-serif; max-width: 960px; margin: 40px auto; padding: 0 24px; color: #222; line-height: 1.7; }
-  h1 { color: #1a5c96; border-bottom: 3px solid #1a5c96; padding-bottom: 8px; }
-  h2 { color: #1a5c96; border-bottom: 1px solid #cce; padding-bottom: 4px; margin-top: 2em; }
-  h3 { color: #2c3e50; margin-top: 1.6em; }
-  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-  th { background: #1a5c96; color: white; padding: 8px 12px; text-align: left; }
-  td { padding: 7px 12px; border-bottom: 1px solid #dde; }
-  tr:nth-child(even) td { background: #f4f8ff; }
-  code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
-  pre { background: #f0f0f0; padding: 16px; border-radius: 6px; overflow-x: auto; }
-  blockquote { border-left: 4px solid #1a5c96; margin: 0; padding: 8px 16px; background: #f0f5ff; color: #444; }
-  hr { border: none; border-top: 2px solid #dde; margin: 2em 0; }
+body {
+    font-family: Segoe UI, Arial;
+    max-width: 960px;
+    margin: 40px auto;
+    line-height: 1.7;
+}
+
+table {
+    border-collapse: collapse;
+    width:100%;
+}
+
+th {
+    background:#1a5c96;
+    color:white;
+}
+
+th, td {
+    padding:8px;
+    border:1px solid #ddd;
+}
 </style>
+
 </head>
+
 <body>
 <h1>Prognoza zużycia energii elektrycznej w Polsce</h1>
 <h2>Projekt zaliczeniowy – Prognozowanie i Symulacje</h2>
-<p><strong>Autor:</strong> Patryk Siuda<br />
+<p><strong>Autor:</strong> Patryk Siuda, Paweł Cyrocki, Damian Skinder<br />
 <strong>Data:</strong> czerwiec 2026<br />
 <strong>Dane:</strong> 2004–2024 (GUS, URE, IMGW/Eurostat)</p>
 <hr />
 <h2>1. Cel i zakres projektu</h2>
-<p>Celem projektu jest zbudowanie krótkoterminowej <strong>prognozy warunkowej</strong> zużycia energii elektrycznej w Polsce na rok 2025, przy wykorzystaniu modeli ekonometrycznych estymowanych na danych historycznych z lat 2004–2024.</p>
+<p>Celem projektu jest zbudowanie krótkoterminowej <strong>prognozy warunkowej</strong> zużycia energii elektrycznej w Polsce na rok <strong>2024</strong>, przy wykorzystaniu modeli ekonometrycznych estymowanych na danych historycznych z lat 2004–2023.</p>
 <p>Projekt realizuje pełny potok analityczny:
 1. Analiza opisowa danych (EDA) – zadanie 2
 2. Budowa i weryfikacja modeli ekonometrycznych – zadanie 3
-3. Prognozy zmiennych objaśniających (7 metod) – zadanie 4
-4. Prognoza warunkowa zmiennej objaśnianej – zadanie 5</p>
+3. Prognozy zmiennych objaśniających (5 metod) – zadanie 4
+4. Prognoza warunkowa zmiennej objaśnianej i analiza trafności – zadanie 5</p>
 <p><strong>Podział próby:</strong>
-- <strong>Zbiór uczący (train):</strong> 2004–2022 (n=19 dla Polska, n=288 dla woj.)
-- <strong>Zbiór testowy (test):</strong> 2023–2024
-- <strong>Horyzont prognozy ex-ante:</strong> 2025</p>
-<p><strong>Ocena jakości prognoz – krocząca walidacja ex-post:</strong>
-- Zastosowano metodę <strong>kroczącej prognozy 1-krokowej naprzód</strong> (rolling 1-step-ahead) dla lat 2015–2024 (n=10 obserwacji)
-- W każdej iteracji model jest re-estymowany na danych do roku t−1 i prognozuje rok t przy użyciu rzeczywistych wartości X (ex-post)
-- Podejście to jest metodycznie poprawne — ocenia model na podstawie 10 niezależnych prognoz zamiast jedynie 2 punktów testowych
-- <strong>Kryterium jakości:</strong> RMSPE% ≤ 10%</p>
+- <strong>Zbiór uczący (train):</strong> 2004–2023 (n=20 dla Polska, n=304 dla województw)
+- <strong>Horyzont prognozy ex-ante:</strong> 2024</p>
+<p><strong>Ocena jakości prognoz:</strong>
+- Miary jakości (ME, MPE%, MAE, MAPE%, RMSE, RMSPE%, TheilU i składowe UM/UV/UC) obliczane są na <strong>wartościach dopasowanych do pełnej próby uczącej 2004–2023</strong> (in-sample)
+- RMSPE% in-sample stanowi główne kryterium wyboru najlepszej metody prognozowania zmiennych X
+- <strong>Kryterium jakości:</strong> RMSPE% ≤ 10%
+- Trafność prognoz ex-ante na rok 2024 oceniana przez porównanie z wartościami rzeczywistymi (błąd absolutny i względny)</p>
 <hr />
 <h2>2. Dane</h2>
 <h3>2.1 Źródła i opis zmiennych</h3>
@@ -114,7 +126,7 @@
 </tbody>
 </table>
 <blockquote>
-<p><strong>Uwaga:</strong> Zmienna CDD (stopniodni chłodnicze) została usunięta z modeli po uzyskaniu nieistotnego statystycznie współczynnika (p &gt; 0.5), co wskazuje na jej marginalną rolę w polskich warunkach klimatycznych.</p>
+<p><strong>Uwaga:</strong> Zmienna CDD (stopniodni chłodnicze) została usunięta z modeli po uzyskaniu nieistotnego statystycznie współczynnika (p &gt; 0,5), co wskazuje na jej marginalną rolę w polskich warunkach klimatycznych.</p>
 </blockquote>
 <h3>2.2 Statystyki opisowe – Polska (2004–2024, n=21)</h3>
 <table>
@@ -172,7 +184,7 @@
 <h3>3.1 Model Polska – log-liniowy OLS</h3>
 <p><strong>Specyfikacja:</strong>
 $$\ln(\text{ZUZYCIE}_t) = \beta_0 + \beta_1 \ln(\text{PKB_pc}_t) + \beta_2 \ln(\text{CENA}_t) + \beta_3 \cdot \text{HDD}_t + \varepsilon_t$$</p>
-<p><strong>Wyniki estymacji (train 2004–2022, n=19):</strong></p>
+<p><strong>Wyniki estymacji (train 2004–2023, n=20):</strong></p>
 <table>
 <thead>
 <tr>
@@ -187,39 +199,39 @@ $$\ln(\text{ZUZYCIE}_t) = \beta_0 + \beta_1 \ln(\text{PKB_pc}_t) + \beta_2 \ln(\
 <tbody>
 <tr>
 <td>stała (β₀)</td>
-<td>9,608</td>
-<td>0,854</td>
-<td>11,25</td>
+<td>9,3854</td>
+<td>1,018</td>
+<td>9,218</td>
 <td>0,000</td>
 <td>***</td>
 </tr>
 <tr>
 <td>ln(PKB_pc) (β₁)</td>
-<td>0,070</td>
-<td>0,067</td>
-<td>1,04</td>
-<td>0,314</td>
+<td>0,0803</td>
+<td>0,080</td>
+<td>1,003</td>
+<td>0,331</td>
 <td>–</td>
 </tr>
 <tr>
 <td>ln(CENA) (β₂)</td>
-<td>0,208</td>
-<td>0,108</td>
-<td>1,92</td>
-<td>0,073</td>
-<td>.</td>
+<td>0,1437</td>
+<td>0,126</td>
+<td>1,138</td>
+<td>0,272</td>
+<td>–</td>
 </tr>
 <tr>
 <td>HDD (β₃)</td>
-<td>−1,96×10⁻⁶</td>
-<td>4,17×10⁻⁵</td>
-<td>−0,05</td>
-<td>0,963</td>
+<td>2,00×10⁻⁵</td>
+<td>4,91×10⁻⁵</td>
+<td>0,408</td>
+<td>0,689</td>
 <td>–</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Miary dopasowania:</strong></p>
+<p><strong>Miary dopasowania (in-sample 2004–2023):</strong></p>
 <table>
 <thead>
 <tr>
@@ -230,110 +242,63 @@ $$\ln(\text{ZUZYCIE}_t) = \beta_0 + \beta_1 \ln(\text{PKB_pc}_t) + \beta_2 \ln(\
 <tbody>
 <tr>
 <td>R²</td>
-<td>0,800</td>
+<td>0,6980</td>
 </tr>
 <tr>
 <td>R² skorygowany</td>
-<td>0,760</td>
+<td>0,6416</td>
 </tr>
 <tr>
 <td>AIC</td>
-<td>−71,54</td>
+<td>−68,27</td>
 </tr>
 <tr>
 <td>BIC</td>
-<td>−67,76</td>
+<td>−64,28</td>
 </tr>
 <tr>
 <td>F-statystyka</td>
-<td>20,02 (p = 1,68×10⁻⁵)</td>
+<td>12,32 (p = 0,000198)</td>
 </tr>
 <tr>
-<td>RMSPE% (train)</td>
-<td>~3–4%</td>
+<td>N</td>
+<td>20</td>
 </tr>
 <tr>
-<td><strong>RMSPE% rolling ex-post (2015–2024, n=10)</strong></td>
-<td><strong>6,25% ✓</strong></td>
+<td><strong>RMSPE% in-sample (2004–2023)</strong></td>
+<td><strong>3,71% ✓</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>VIF:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Zmienna</th>
+<th>VIF</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ln(PKB_pc)</td>
+<td>10,00</td>
+</tr>
+<tr>
+<td>ln(CENA)</td>
+<td>8,20</td>
+</tr>
+<tr>
+<td>HDD</td>
+<td>1,69</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Interpretacja:</strong>
 - Model wykazuje istotność globalną (F-test p &lt; 0,001), mimo nieistotnych indywidualnych t-testów
-- Przyczyną jest <strong>współliniowość</strong> zmiennych: VIF(ln_PKB_pc) ≈ 8, VIF(ln_CENA) ≈ 7
-  - PKB i CENA wykazują silne trendy wzrostowe w latach 2004–2024, co utrudnia separację efektów
-  - Jest to typowy problem krótkich szeregów makroekonomicznych, akceptowalny w kontekście prognozowania
-- Rolling RMSPE% = 6,25% mieści się w kryterium ≤ 10% ✓</p>
-<p><strong>Diagnostyka reszt:</strong>
-| Test | Wartość | Wniosek |
-|------|---------|---------|
-| Durbin-Watson | 1,079 | Podejrzenie autokorelacji (&lt; 1,5) |
-| Breusch-Godfrey | p = 0,778 | Brak istotnej autokorelacji |
-| Shapiro-Wilk | p = 0,0005 | Odrzucenie normalności (n=19, wrażliwy test) |
-| Breusch-Pagan | p = 0,395 | Brak heteroskedastyczności |</p>
-<blockquote>
-<p><strong>Uwaga diagnostyczna:</strong> Naruszenie założenia normalności reszt przy n=19 jest charakterystyczne dla makroekonomicznych szeregów czasowych z obserwacjami anomalnymi (kryzys 2008–2009, pandemia 2020–2021). DW &lt; 1,5 sugeruje możliwą autokorelację, jednak test BG nie potwierdza jej istotności statystycznej. Model nadal pozostaje użyteczny prognostycznie (RMSPE% ≤ 10%).</p>
-</blockquote>
-<hr />
-<h3>3.2 Model FE (efekty stałe) – dane panelowe</h3>
-<p><strong>Specyfikacja:</strong>
-$$\ln(\text{ZUZYCIE}<em>{it}) = \alpha + \mathbf{x}</em>{it}^T \boldsymbol{\beta} + \sum_{k=2}^{16} \delta_k \cdot d_{ik} + \varepsilon_{it}$$</p>
-<p>gdzie $d_{ik}$ to zmienne zero-jedynkowe dla województw (kategoria referencyjna: dolnośląskie).</p>
-<p><strong>Zmienne objaśniające:</strong>
-- <code>ln_dochod_os_lag1</code> – logarytm dochodu na osobę z opóźnieniem o 1 rok (efekt z poprzedniego roku)
-- <code>ln_cena</code> – logarytm ceny energii elektrycznej
-- <code>urbanizacja_pct</code> – stopień urbanizacji [%]
-- <code>liczba_os</code> – przeciętna liczba osób w gosp. domowym
-- <code>pow_os</code> – powierzchnia użytkowa mieszkania na osobę [m²]
-- <code>hdd</code> – stopniodni grzewcze</p>
-<blockquote>
-<p><strong>Uwaga:</strong> Ze względu na zastosowanie zmiennej opóźnionej (<code>lag1</code>), rok 2004 jest wykluczony ze zbioru uczącego. Efektywny zbiór uczący: 2005–2022 (n=288 po 2004 r.).</p>
-</blockquote>
-<p><strong>Wyniki estymacji:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Miara</th>
-<th>Wartość</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>R²</td>
-<td>0,996</td>
-</tr>
-<tr>
-<td>R² skorygowany</td>
-<td>0,996</td>
-</tr>
-<tr>
-<td>Liczba parametrów</td>
-<td>22 (6 zm. + 15 efektów + stała)</td>
-</tr>
-<tr>
-<td>F(21, 266) globalny</td>
-<td>3 256 (p ≈ 0)</td>
-</tr>
-<tr>
-<td>AIC / BIC</td>
-<td>−1 078 / −997</td>
-</tr>
-<tr>
-<td><strong>F-test dummy p-value</strong></td>
-<td>≈ 0 – efekty stałe wysoce istotne</td>
-</tr>
-<tr>
-<td>RMSPE% (train)</td>
-<td>3,51%</td>
-</tr>
-<tr>
-<td><strong>RMSPE% rolling ex-post (2015–2024, n=160)</strong></td>
-<td><strong>5,85% ✓</strong></td>
-</tr>
-</tbody>
-</table>
-<p><strong>Test łącznej istotności efektów stałych:</strong> F(15, 266) = 2 786,8, p ≈ 0 → <strong>efekty stałe wysoce istotne</strong></p>
-<p><strong>Diagnostyka reszt FE:</strong></p>
+- Przyczyną jest <strong>współliniowość</strong>: VIF(ln_PKB_pc) ≈ 10, VIF(ln_CENA) ≈ 8 – typowy problem krótkich szeregów makroekonomicznych
+- PKB i CENA wykazują silne trendy wzrostowe w latach 2004–2023, co utrudnia separację efektów
+- RMSPE% = 3,71% mieści się w kryterium ≤ 10% ✓</p>
+<p><strong>Diagnostyka reszt:</strong></p>
 <table>
 <thead>
 <tr>
@@ -345,30 +310,182 @@ $$\ln(\text{ZUZYCIE}<em>{it}) = \alpha + \mathbf{x}</em>{it}^T \boldsymbol{\beta
 <tbody>
 <tr>
 <td>Durbin-Watson</td>
-<td>0,984</td>
-<td>Silna autokorelacja (panel)</td>
+<td>0,6510</td>
+<td>! Silna autokorelacja (DW &lt; 1,5)</td>
 </tr>
 <tr>
-<td>Breusch-Godfrey</td>
-<td>p ≈ 0</td>
-<td>Autokorelacja</td>
+<td>Breusch-Godfrey p</td>
+<td>0,1696</td>
+<td>OK ✓ Brak istotnej autokorelacji</td>
 </tr>
 <tr>
-<td>Shapiro-Wilk</td>
-<td>p ≈ 0</td>
-<td>Odrzucenie normalności (n=288)</td>
+<td>Ljung-Box lag=1 p</td>
+<td>0,1021</td>
+<td>OK ✓</td>
 </tr>
 <tr>
-<td>Breusch-Pagan</td>
-<td>p = 0,043</td>
-<td>Heteroskedastyczność na granicy</td>
+<td>Shapiro-Wilk p</td>
+<td>0,0002</td>
+<td>! Odrzucenie normalności (n=20, wrażliwy test)</td>
+</tr>
+<tr>
+<td>Breusch-Pagan p</td>
+<td>0,8508</td>
+<td>OK ✓ Brak heteroskedastyczności</td>
+</tr>
+<tr>
+<td>RESET p</td>
+<td>0,0000</td>
+<td>! Błędna specyfikacja formy funkcyjnej</td>
+</tr>
+<tr>
+<td>ADF p (orientacyjny)</td>
+<td>0,0597</td>
+<td>! Niestacjonarność (orientacyjny przy n=21)</td>
+</tr>
+<tr>
+<td>Condition number</td>
+<td>379 472</td>
+<td>! Wysoka multikolinearność</td>
 </tr>
 </tbody>
 </table>
 <blockquote>
-<p>W modelu panelowym autokorelacja i odrzucenie normalności są typowe i oczekiwane. Nie wpływają istotnie na użyteczność prognostyczną modelu.</p>
+<p><strong>Uwaga diagnostyczna:</strong> Naruszenie normalności reszt przy n=20 jest charakterystyczne dla makroekonomicznych szeregów czasowych z obserwacjami anomalnymi (kryzys 2008–2009, pandemia 2020–2021, kryzys energetyczny 2022–2023). DW sugeruje autokorelację, jednak test BG nie potwierdza jej na poziomie istotności 5%. RESET wskazuje na potencjalne problemy ze specyfikacją, co jest oczekiwane przy silnej multikoliniowości. Model nadal pozostaje użyteczny prognostycznie (RMSPE% = 3,71% ≤ 10%).</p>
 </blockquote>
-<p><strong>VIF (tylko zmienne główne):</strong></p>
+<hr />
+<h3>3.2 Model FE (efekty stałe) – dane panelowe</h3>
+<p><strong>Specyfikacja:</strong>
+$$\ln(\text{ZUZYCIE}<em>{it}) = \alpha + \mathbf{x}</em>{it}^T \boldsymbol{\beta} + \sum_{k=2}^{16} \delta_k \cdot d_{ik} + \varepsilon_{it}$$</p>
+<p>gdzie $d_{ik}$ to zmienne zero-jedynkowe dla województw (kategoria referencyjna: dolnośląskie).</p>
+<p><strong>Okres estymacji:</strong> 2005–2023 (n = 19 lat × 16 województw = 304 obserwacje; rok 2004 wykluczony ze względu na zmienną opóźnioną)</p>
+<p><strong>Zmienne objaśniające:</strong>
+- <code>ln_dochod_os_lag1</code> – logarytm dochodu na osobę z opóźnieniem o 1 rok
+- <code>ln_cena</code> – logarytm ceny energii elektrycznej
+- <code>urbanizacja_pct</code> – stopień urbanizacji [%]
+- <code>liczba_os</code> – przeciętna liczba osób w gosp. domowym
+- <code>pow_os</code> – powierzchnia użytkowa mieszkania na osobę [m²]
+- <code>hdd</code> – stopniodni grzewcze</p>
+<p><strong>Wyniki estymacji (zmienne główne):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Parametr</th>
+<th>Estymacja</th>
+<th>Błąd std.</th>
+<th>t</th>
+<th>p-value</th>
+<th>Ist.</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>stała</td>
+<td>5,8039</td>
+<td>0,421</td>
+<td>13,781</td>
+<td>0,000</td>
+<td>***</td>
+</tr>
+<tr>
+<td>ln(Dochód_os lag1)</td>
+<td>0,2305</td>
+<td>0,038</td>
+<td>6,110</td>
+<td>0,000</td>
+<td>***</td>
+</tr>
+<tr>
+<td>ln(CENA)</td>
+<td>−0,0441</td>
+<td>0,031</td>
+<td>−1,424</td>
+<td>0,156</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Urbanizacja [%]</td>
+<td>−0,0026</td>
+<td>0,004</td>
+<td>−0,716</td>
+<td>0,474</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Liczba os.</td>
+<td>−0,0104</td>
+<td>0,034</td>
+<td>−0,309</td>
+<td>0,758</td>
+<td>–</td>
+</tr>
+<tr>
+<td>Pow./os. [m²]</td>
+<td>−0,0114</td>
+<td>0,004</td>
+<td>−2,853</td>
+<td>0,005</td>
+<td>**</td>
+</tr>
+<tr>
+<td>HDD</td>
+<td>3,98×10⁻⁵</td>
+<td>1,11×10⁻⁵</td>
+<td>3,573</td>
+<td>0,000</td>
+<td>***</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Miary dopasowania (in-sample 2005–2023):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Miara</th>
+<th>Wartość</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R²</td>
+<td>0,9953</td>
+</tr>
+<tr>
+<td>R² skorygowany</td>
+<td>0,9950</td>
+</tr>
+<tr>
+<td>AIC</td>
+<td>−1 084</td>
+</tr>
+<tr>
+<td>BIC</td>
+<td>−1 002</td>
+</tr>
+<tr>
+<td>F-statystyka</td>
+<td>2 874 (p ≈ 0)</td>
+</tr>
+<tr>
+<td>N</td>
+<td>304</td>
+</tr>
+<tr>
+<td>F-test dummies (p)</td>
+<td>0,000000 – efekty stałe wysoce istotne ✓</td>
+</tr>
+<tr>
+<td><strong>RMSPE% in-sample (2005–2023)</strong></td>
+<td><strong>3,87% ✓</strong></td>
+</tr>
+<tr>
+<td>Woj. RMSPE ≤ 10% (in-sample)</td>
+<td>14/16</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Test łącznej istotności efektów stałych:</strong> F(15, 282) = 2 425,9, p ≈ 0 → <strong>efekty stałe wysoce istotne</strong></p>
+<p><strong>VIF (zmienne główne, bez dummy):</strong></p>
 <table>
 <thead>
 <tr>
@@ -378,132 +495,139 @@ $$\ln(\text{ZUZYCIE}<em>{it}) = \alpha + \mathbf{x}</em>{it}^T \boldsymbol{\beta
 </thead>
 <tbody>
 <tr>
-<td>ln_dochod_os_lag1</td>
-<td>32,58</td>
+<td>ln(Dochód_os lag1)</td>
+<td>31,72</td>
 </tr>
 <tr>
-<td>ln_cena</td>
-<td>6,78</td>
+<td>ln(CENA)</td>
+<td>6,95</td>
 </tr>
 <tr>
-<td>urbanizacja_pct</td>
-<td><strong>263,23</strong></td>
+<td>Urbanizacja [%]</td>
+<td>242,73</td>
 </tr>
 <tr>
-<td>liczba_os</td>
-<td>12,48</td>
+<td>Liczba os.</td>
+<td>13,18</td>
 </tr>
 <tr>
-<td>pow_os</td>
-<td>23,66</td>
+<td>Pow./os. [m²]</td>
+<td>25,10</td>
 </tr>
 <tr>
-<td>hdd</td>
+<td>HDD</td>
 <td>2,05</td>
 </tr>
 </tbody>
 </table>
 <blockquote>
-<p><strong>Uwaga:</strong> VIF dla <code>urbanizacja_pct</code> jest bardzo wysoki (263), co wskazuje na silną współliniowość z innymi zmiennymi strukturalnymi. Usunięcie tej zmiennej pogarszało jednak jakość prognoz, dlatego pozostawiono ją w modelu z adnotacją o ograniczonej interpretowalności parametru.</p>
+<p><strong>Uwaga:</strong> VIF dla <code>urbanizacja_pct</code> jest bardzo wysoki (242,73), co wskazuje na silną współliniowość ze zmiennymi strukturalnymi. Usunięcie tej zmiennej pogarszało jednak jakość prognoz, dlatego pozostawiono ją w modelu z adnotacją o ograniczonej interpretowalności parametru.</p>
 </blockquote>
-<p><strong>RMSPE% per województwo (krocząca walidacja 2015–2024, n=10 na woj.):</strong></p>
+<p><strong>Diagnostyka reszt FE:</strong></p>
 <table>
 <thead>
 <tr>
-<th>Województwo</th>
-<th>RMSPE% rolling</th>
+<th>Test</th>
+<th>Wartość</th>
+<th>Wniosek</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Durbin-Watson (orientacyjny)</td>
+<td>0,7883</td>
+<td>! Silna autokorelacja (panel)</td>
+</tr>
+<tr>
+<td>Breusch-Godfrey p</td>
+<td>0,0000</td>
+<td>! Autokorelacja</td>
+</tr>
+<tr>
+<td>Ljung-Box lag=4 p</td>
+<td>0,0000</td>
+<td>! Autokorelacja</td>
+</tr>
+<tr>
+<td>Shapiro-Wilk p</td>
+<td>0,0000</td>
+<td>! Odrzucenie normalności</td>
+</tr>
+<tr>
+<td>Jarque-Bera p</td>
+<td>0,0000</td>
+<td>! Odrzucenie normalności</td>
+</tr>
+<tr>
+<td>Breusch-Pagan p</td>
+<td>0,0139</td>
+<td>! Heteroskedastyczność</td>
+</tr>
+<tr>
+<td>White p (bez dummy)</td>
+<td>0,0000</td>
+<td>! Heteroskedastyczność</td>
+</tr>
+<tr>
+<td>RESET p (orientacyjny)</td>
+<td>0,0549</td>
+<td>OK ✓ Forma funkcyjna akceptowalna</td>
+</tr>
+<tr>
+<td>F-test dummies p</td>
+<td>0,000000</td>
+<td>FE istotne ✓</td>
+</tr>
+<tr>
+<td>Condition number (główne)</td>
+<td>383 784</td>
+<td>! Wysoka multikolinearność</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>W modelu panelowym autokorelacja i odrzucenie normalności są typowe i oczekiwane przy n=304. Heteroskedastyczność wynika z dużego zróżnicowania województw pod względem zużycia energii. Nie wpływają istotnie na użyteczność prognostyczną modelu – RMSPE% = 3,87% ≤ 10%.</p>
+</blockquote>
+<p><strong>Porównanie modeli – miary jakości in-sample:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>R²</th>
+<th>R²adj</th>
+<th>AIC</th>
+<th>BIC</th>
+<th>RMSPE% in-sample</th>
+<th>Woj./obs.</th>
 <th>Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Dolnośląskie</td>
-<td>7,65%</td>
-<td>✓</td>
+<td>Model Polska (OLS)</td>
+<td>0,6980</td>
+<td>0,6416</td>
+<td>−68,3</td>
+<td>−64,3</td>
+<td>3,71%</td>
+<td>20 obs</td>
+<td>OK ✓</td>
 </tr>
 <tr>
-<td>Kujawsko-pomorskie</td>
-<td>4,36%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Lubelskie</td>
-<td>9,24%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Lubuskie</td>
-<td>4,60%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Łódzkie</td>
-<td>5,44%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Małopolskie</td>
-<td>3,76%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Mazowieckie</td>
-<td>4,57%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Opolskie</td>
-<td>7,47%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Podkarpackie</td>
-<td>7,68%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Podlaskie</td>
-<td>4,76%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Pomorskie</td>
-<td>5,06%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Śląskie</td>
-<td>5,37%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Świętokrzyskie</td>
-<td>5,18%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Warmińsko-mazurskie</td>
-<td>6,19%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Wielkopolskie</td>
-<td>4,85%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Zachodniopomorskie</td>
-<td>4,34%</td>
-<td>✓</td>
+<td>Model FE Woj. (panel)</td>
+<td>0,9953</td>
+<td>0,9950</td>
+<td>−1 084</td>
+<td>−1 002</td>
+<td>3,87%</td>
+<td>14/16 woj.</td>
+<td>OK ✓</td>
 </tr>
 </tbody>
 </table>
-<blockquote>
-<p><strong>16/16 województw</strong> spełnia kryterium RMSPE% ≤ 10% przy kroczącej walidacji ex-post (2015–2024). Poprzednia ocena na 2-punktowym zbiorze testowym (2023–2024) zawyżała błędy dla województw doświadczających szoku cenowego energii w 2022–2023 r. (Dolnośląskie, Lubelskie, Podkarpackie).</p>
-</blockquote>
 <hr />
 <h2>4. Prognozy zmiennych objaśniających (Zadanie 4)</h2>
-<p>Zmienne objaśniające na lata 2023–2025 prognozowano 7 metodami, wybierając najlepszą na podstawie RMSPE% na zbiorze testowym (2023–2024).</p>
+<p>Zmienne objaśniające na rok 2024 prognozowano <strong>5 metodami</strong>, wybierając najlepszą na podstawie RMSPE% obliczonego na <strong>wartościach dopasowanych do pełnej próby uczącej 2004–2023</strong>.</p>
 <h3>4.1 Zastosowane metody prognozowania</h3>
 <table>
 <thead>
@@ -525,23 +649,13 @@ $$\ln(\text{ZUZYCIE}<em>{it}) = \alpha + \mathbf{x}</em>{it}^T \boldsymbol{\beta
 <td>Trend paraboliczny w czasie</td>
 </tr>
 <tr>
-<td>AR1</td>
-<td>Autoregresja rzędu 1</td>
-<td>ARIMA(1,0,0)</td>
-</tr>
-<tr>
-<td>AR2</td>
-<td>Autoregresja rzędu 2</td>
-<td>ARIMA(2,0,0)</td>
-</tr>
-<tr>
 <td>ARIMA</td>
 <td>Auto-ARIMA</td>
 <td>Auto-dobór p,d,q (pmdarima)</td>
 </tr>
 <tr>
 <td>Holt</td>
-<td>Wygładzanie Holta</td>
+<td>Wygładzanie wykładnicze Holta</td>
 <td>SimpleExpSmoothing</td>
 </tr>
 <tr>
@@ -552,40 +666,199 @@ $$\ln(\text{ZUZYCIE}<em>{it}) = \alpha + \mathbf{x}</em>{it}^T \boldsymbol{\beta
 </tbody>
 </table>
 <h3>4.2 Wyniki – Model Polska (3 zmienne)</h3>
+<p>RMSPE% in-sample 2004–2023 dla każdej metody (* = najlepsza):</p>
+<table>
+<thead>
+<tr>
+<th>Metoda</th>
+<th>PKB per capita</th>
+<th>Cena energii</th>
+<th>HDD</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OLS_lin</td>
+<td>9,62%</td>
+<td>8,38%</td>
+<td>5,76%</td>
+</tr>
+<tr>
+<td>OLS_kw</td>
+<td><strong>7,09%</strong>*</td>
+<td>8,08%</td>
+<td><strong>5,76%</strong>*</td>
+</tr>
+<tr>
+<td>ARIMA</td>
+<td>28,17%</td>
+<td>21,72%</td>
+<td>23,19%</td>
+</tr>
+<tr>
+<td>Holt</td>
+<td>7,14%</td>
+<td><strong>6,80%</strong>*</td>
+<td>6,95%</td>
+</tr>
+<tr>
+<td>Pawl</td>
+<td>17,51%</td>
+<td>8,58%</td>
+<td>5,79%</td>
+</tr>
+</tbody>
+</table>
 <table>
 <thead>
 <tr>
 <th>Zmienna</th>
 <th>Najlepsza metoda</th>
 <th>RMSPE%</th>
-<th>FC 2025</th>
+<th>FC 2024</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>PKB per capita [PLN/os]</td>
-<td>AR2</td>
-<td>3,34% ✓</td>
-<td>109 292</td>
+<td>OLS_kw</td>
+<td>7,09% ✓</td>
+<td>89 289</td>
 </tr>
 <tr>
 <td>Cena energii [PLN/kWh]</td>
-<td>ARIMA</td>
-<td>16,82%</td>
-<td>0,830</td>
+<td>Holt</td>
+<td>6,80% ✓</td>
+<td>0,910</td>
 </tr>
 <tr>
 <td>HDD [°C·dzień]</td>
 <td>OLS_kw</td>
-<td>9,91% ✓</td>
-<td>3 075</td>
+<td>5,76% ✓</td>
+<td>3 031</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pełne miary jakości prognoz zmiennych X – najlepsza metoda, in-sample 2004–2023:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Miara</th>
+<th>PKB per capita (OLS_kw)</th>
+<th>Cena energii (Holt)</th>
+<th>HDD (OLS_kw)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ME</td>
+<td>−0,00</td>
+<td>0,03</td>
+<td>0,00</td>
+</tr>
+<tr>
+<td>MPE%</td>
+<td>−0,34%</td>
+<td>3,74%</td>
+<td>−0,34%</td>
+</tr>
+<tr>
+<td>MAE</td>
+<td>2 865,63</td>
+<td>0,04</td>
+<td>152,21</td>
+</tr>
+<tr>
+<td>MAPE%</td>
+<td>6,24%</td>
+<td>5,53%</td>
+<td>4,56%</td>
+</tr>
+<tr>
+<td>RMSE</td>
+<td>3 309,68</td>
+<td>0,05</td>
+<td>198,13</td>
+</tr>
+<tr>
+<td>RMSPE%</td>
+<td><strong>7,09%</strong></td>
+<td><strong>6,80%</strong></td>
+<td><strong>5,76%</strong></td>
+</tr>
+<tr>
+<td>TheilU</td>
+<td>0,0325</td>
+<td>0,0392</td>
+<td>0,0299</td>
+</tr>
+<tr>
+<td>UM</td>
+<td>0,0000</td>
+<td>0,2729</td>
+<td>0,0000</td>
+</tr>
+<tr>
+<td>UV</td>
+<td>0,0090</td>
+<td>0,0773</td>
+<td>0,2855</td>
+</tr>
+<tr>
+<td>UC</td>
+<td>0,9910</td>
+<td>0,6497</td>
+<td>0,7145</td>
 </tr>
 </tbody>
 </table>
 <blockquote>
-<p><strong>Uwaga:</strong> Prognoza ceny energii przekracza kryterium RMSPE% (16,82%) ze względu na bezprecedensowy skok cen energii w 2022–2023 (kryzys energetyczny). Jest to oczekiwane ograniczenie modeli bazujących na danych historycznych w warunkach strukturalnych szoków zewnętrznych.</p>
+<p><strong>Interpretacja:</strong> Wszystkie trzy prognozy spełniają kryterium RMSPE% ≤ 10%. TheilU bliski 0 świadczy o dobrej jakości. Składowe: <strong>UM</strong> = udział obciążenia (bias) – PKB i HDD ≈ 0 (brak systematycznego błędu), CENA = 0,27 (umiarkowane obciążenie); <strong>UV</strong> = niedopasowanie wahań; <strong>UC</strong> = zgodność kierunku – PKB i CENA dominuje UC (≥ 0,65), co oznacza dobrą odpowiedź na kierunek zmian.</p>
 </blockquote>
-<h3>4.3 Wyniki – Model FE województwa (6 zmiennych)</h3>
+<h3>4.3 Analiza trafności prognoz X (prognoza 2024 vs rzeczywiste 2024)</h3>
+<table>
+<thead>
+<tr>
+<th>Zmienna</th>
+<th>Metoda</th>
+<th>Prognoza 2024</th>
+<th>Rzeczywiste 2024</th>
+<th>Błąd abs.</th>
+<th>Błąd wzgl.</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PKB per capita [PLN/os]</td>
+<td>OLS_kw</td>
+<td>89 289</td>
+<td>97 453</td>
+<td>−8 164</td>
+<td>−8,38%</td>
+</tr>
+<tr>
+<td>Cena energii [PLN/kWh]</td>
+<td>Holt</td>
+<td>0,910</td>
+<td>1,010</td>
+<td>−0,100</td>
+<td>−9,90%</td>
+</tr>
+<tr>
+<td>HDD [°C·dzień]</td>
+<td>OLS_kw</td>
+<td>3 031</td>
+<td>2 738</td>
+<td>+294</td>
+<td>+10,74%</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Wszystkie trzy zmienne prognozowane są z błędem poniżej 11%. Prognozy PKB i Ceny są niedoszacowane – model nie uchwycił w pełni dalszego wzrostu PKB oraz utrzymania wysokich cen energii w 2024 roku. HDD jest przeszacowane (przewidziano zimniejszy rok niż był w rzeczywistości).</p>
+</blockquote>
+<h3>4.4 Wyniki – Model FE województwa (6 zmiennych)</h3>
+<p>Mediana RMSPE% po 16 województwach na próbie uczącej 2004–2023:</p>
 <table>
 <thead>
 <tr>
@@ -597,221 +870,216 @@ $$\ln(\text{ZUZYCIE}<em>{it}) = \alpha + \mathbf{x}</em>{it}^T \boldsymbol{\beta
 <tbody>
 <tr>
 <td>Dochód na osobę [PLN]</td>
-<td>16,32%</td>
-<td>1/16</td>
+<td>6,78% ✓</td>
+<td>16/16</td>
 </tr>
 <tr>
 <td>Cena energii [PLN/kWh]</td>
-<td>17,07%</td>
-<td>0/16</td>
+<td>6,92% ✓</td>
+<td>16/16</td>
 </tr>
 <tr>
 <td>Urbanizacja [%]</td>
-<td>0,11% ✓✓</td>
+<td>0,14% ✓</td>
 <td>16/16</td>
 </tr>
 <tr>
 <td>Liczba osób w gosp.</td>
-<td>0,94% ✓✓</td>
+<td>1,75% ✓</td>
 <td>16/16</td>
 </tr>
 <tr>
 <td>Pow. mieszk. na os. [m²]</td>
-<td>0,46% ✓✓</td>
+<td>0,87% ✓</td>
 <td>16/16</td>
 </tr>
 <tr>
 <td>HDD [°C·dzień]</td>
-<td>9,66% ✓</td>
-<td>9/16</td>
+<td>5,90% ✓</td>
+<td>16/16</td>
 </tr>
 </tbody>
 </table>
 <blockquote>
-<p><strong>Uwaga:</strong> Wysokie RMSPE% dla dochodu i ceny energii wynikają z kryzysu energetycznego 2022–2023. Zmienne strukturalne (urbanizacja, liczba osób, pow. mieszk.) prognozują się z bardzo małym błędem dzięki ich wolnozmiennej naturze.</p>
+<p>Wszystkie 6 zmiennych i wszystkie 16 województw spełniają kryterium RMSPE% ≤ 10%. Zmienne strukturalne (urbanizacja, liczba osób, pow. mieszk.) prognozują się z minimalnym błędem dzięki ich wolnozmiennej naturze.</p>
 </blockquote>
 <hr />
 <h2>5. Prognoza warunkowa (Zadanie 5)</h2>
 <h3>5.1 Metodologia</h3>
-<p>Prognozę warunkową zużycia energii na rok 2025 wyznaczono w dwóch krokach:</p>
+<p>Prognozę warunkową zużycia energii na rok <strong>2024</strong> wyznaczono w dwóch krokach:</p>
 <ol>
-<li><strong>Prognoza zmiennych X</strong> (Zadanie 4) → wartości oczekiwane na 2025</li>
+<li><strong>Prognoza zmiennych X</strong> (Zadanie 4) → wartości oczekiwane na 2024</li>
 <li><strong>Podstawienie prognozowanych X</strong> do modelu ekonometrycznego (Zadanie 3):</li>
-<li>Model Polska: <code>ŷ₂₀₂₅ = exp(β̂₀ + β̂₁·ln(x̂₁) + β̂₂·ln(x̂₂) + β̂₃·x̂₃)</code></li>
+<li>Model Polska: <code>ŷ₂₀₂₄ = exp(β̂₀ + β̂₁·ln(x̂₁) + β̂₂·ln(x̂₂) + β̂₃·x̂₃)</code></li>
 <li>Model FE: dla każdego województwa z osobna, następnie agregacja do sumy krajowej</li>
 </ol>
-<p><strong>Obsługa zmiennej opóźnionej <code>ln_dochod_os_lag1</code> w modelu FE:</strong>
-- 2023: lag = ln(dochód_2022) — znana wartość historyczna
-- 2024: lag = ln(prognozowany_dochód_2023) — z Zadania 4
-- 2025: lag = ln(prognozowany_dochód_2024) — z Zadania 4</p>
-<h3>5.2 Wyniki – Model Polska</h3>
-<table>
-<thead>
-<tr>
-<th>Rok</th>
-<th>Rzeczywiste [GWh]</th>
-<th>Prognoza [GWh]</th>
-<th>95% CI</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>2023</td>
-<td>28 807</td>
-<td>31 326</td>
-<td>—</td>
-</tr>
-<tr>
-<td>2024</td>
-<td>32 661</td>
-<td>31 697</td>
-<td>—</td>
-</tr>
-<tr>
-<td><strong>2025</strong></td>
-<td>—</td>
-<td><strong>32 021</strong></td>
-<td><strong>[30 182–33 973]</strong></td>
-</tr>
-</tbody>
-</table>
-<p><strong>RMSPE% rolling warunkowa (2015–2024, n=10): 5,63% ✓</strong> (poniżej kryterium 10%)</p>
 <p>Przedziały ufności obliczono metodą analityczną:
 $$\text{SE}_{\hat{y}} = \sqrt{\hat{\sigma}^2 \cdot \left(1 + \mathbf{x}_0^T (\mathbf{X}^T\mathbf{X})^{-1} \mathbf{x}_0\right)}$$</p>
-<h3>5.3 Wyniki – Model FE (agregacja sumy 16 województw)</h3>
-<table>
-<thead>
-<tr>
-<th>Rok</th>
-<th>Prognoza [GWh]</th>
-<th>RMSPE%</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>2025</strong></td>
-<td><strong>30 753</strong></td>
-<td>—</td>
-</tr>
-</tbody>
-</table>
-<p><strong>RMSPE% rolling ex-post (2015–2024, n=160): 5,85% ✓</strong> (poniżej kryterium 10%)</p>
-<p><strong>Wyniki per województwo (prognoza ex-ante 2025, RMSPE% z kroczącej walidacji 2015–2024):</strong></p>
+<h3>5.2 Wyniki – Model Polska</h3>
+<p><strong>Prognoza ex-ante 2024:</strong> <strong>31 193 GWh</strong>, 95% CI: [29 836 – 32 612 GWh]</p>
+<p><strong>Miary jakości dopasowania modelu Polska (in-sample 2004–2023):</strong></p>
+<ul>
+<li>RMSPE% in-sample = <strong>3,71%</strong> ✓ (kryterium ≤ 10% spełnione)</li>
+<li>MAPE% in-sample = 2,50%</li>
+<li>R² = 0,698</li>
+</ul>
+<blockquote>
+<p>Szczegółowe miary jakości prognoz zmiennych objaśniających (ME, MPE%, MAE, MAPE%, RMSE, RMSPE%, TheilU, UM, UV, UC) zawarte są w sekcji 4.2.</p>
+</blockquote>
+<h3>5.3 Wyniki – Model FE (agregacja 16 województw)</h3>
+<p><strong>Prognoza ex-ante 2024 (suma): 30 248 GWh</strong></p>
 <table>
 <thead>
 <tr>
 <th>Województwo</th>
-<th>FC 2025 [GWh]</th>
-<th>RMSPE% rolling</th>
+<th>RMSPE%</th>
 <th>Status</th>
+<th>FC 2024 [GWh]</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Dolnośląskie</td>
-<td>2 280</td>
-<td>7,65%</td>
+<td>6,9%</td>
 <td>✓</td>
+<td>2 277</td>
 </tr>
 <tr>
 <td>Kujawsko-pomorskie</td>
-<td>1 591</td>
-<td>4,36%</td>
+<td>8,0%</td>
 <td>✓</td>
+<td>1 600</td>
 </tr>
 <tr>
 <td>Lubelskie</td>
-<td>1 515</td>
-<td>9,24%</td>
-<td>✓</td>
+<td>16,2%</td>
+<td>✗</td>
+<td>1 460</td>
 </tr>
 <tr>
 <td>Lubuskie</td>
-<td>781</td>
-<td>4,60%</td>
+<td>5,3%</td>
 <td>✓</td>
-</tr>
-<tr>
-<td>Łódzkie</td>
-<td>2 062</td>
-<td>5,44%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Małopolskie</td>
-<td>2 918</td>
-<td>3,76%</td>
-<td>✓</td>
+<td>794</td>
 </tr>
 <tr>
 <td>Mazowieckie</td>
-<td>4 945</td>
-<td>4,57%</td>
+<td>2,3%</td>
 <td>✓</td>
+<td>4 922</td>
+</tr>
+<tr>
+<td>Małopolskie</td>
+<td>5,7%</td>
+<td>✓</td>
+<td>2 844</td>
 </tr>
 <tr>
 <td>Opolskie</td>
-<td>850</td>
-<td>7,47%</td>
+<td>6,8%</td>
 <td>✓</td>
+<td>826</td>
 </tr>
 <tr>
 <td>Podkarpackie</td>
-<td>1 280</td>
-<td>7,68%</td>
-<td>✓</td>
+<td>13,1%</td>
+<td>✗</td>
+<td>1 244</td>
 </tr>
 <tr>
 <td>Podlaskie</td>
-<td>952</td>
-<td>4,76%</td>
+<td>7,9%</td>
 <td>✓</td>
+<td>937</td>
 </tr>
 <tr>
 <td>Pomorskie</td>
-<td>1 817</td>
-<td>5,06%</td>
+<td>3,5%</td>
 <td>✓</td>
-</tr>
-<tr>
-<td>Śląskie</td>
-<td>3 864</td>
-<td>5,37%</td>
-<td>✓</td>
-</tr>
-<tr>
-<td>Świętokrzyskie</td>
-<td>797</td>
-<td>5,18%</td>
-<td>✓</td>
+<td>1 772</td>
 </tr>
 <tr>
 <td>Warmińsko-mazurskie</td>
-<td>1 062</td>
-<td>6,19%</td>
+<td>8,1%</td>
 <td>✓</td>
+<td>1 039</td>
 </tr>
 <tr>
 <td>Wielkopolskie</td>
-<td>2 755</td>
-<td>4,85%</td>
+<td>1,4%</td>
 <td>✓</td>
+<td>2 724</td>
 </tr>
 <tr>
 <td>Zachodniopomorskie</td>
-<td>1 283</td>
-<td>4,34%</td>
+<td>4,0%</td>
 <td>✓</td>
+<td>1 234</td>
+</tr>
+<tr>
+<td>Łódzkie</td>
+<td>5,7%</td>
+<td>✓</td>
+<td>2 010</td>
+</tr>
+<tr>
+<td>Śląskie</td>
+<td>9,0%</td>
+<td>✓</td>
+<td>3 783</td>
+</tr>
+<tr>
+<td>Świętokrzyskie</td>
+<td>7,6%</td>
+<td>✓</td>
+<td>782</td>
 </tr>
 <tr>
 <td><strong>SUMA</strong></td>
-<td><strong>30 753</strong></td>
-<td><strong>5,85% ✓</strong></td>
-<td><strong>16/16 ✓</strong></td>
+<td><strong>med. 6,80%</strong></td>
+<td><strong>14/16 ✓</strong></td>
+<td><strong>30 248</strong></td>
 </tr>
 </tbody>
 </table>
-<h3>5.4 Porównanie obu modeli</h3>
+<blockquote>
+<p>Lubelskie (16,2%) i Podkarpackie (13,1%) przekraczają kryterium 10% – oba województwa charakteryzują się dużą zmiennością struktury zużycia energii w badanym okresie.</p>
+</blockquote>
+<h3>5.4 Analiza trafności ex-ante – prognoza Y 2024 vs rzeczywiste 2024</h3>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Prognoza 2024 [GWh]</th>
+<th>Rzeczywiste 2024 [GWh]</th>
+<th>Błąd abs. [GWh]</th>
+<th>Błąd wzgl. [%]</th>
+<th>≤5%?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Model Polska (OLS)</td>
+<td>31 193</td>
+<td>32 661</td>
+<td>−1 468</td>
+<td>−4,49%</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Model FE (województwa)</td>
+<td>30 248</td>
+<td>32 661</td>
+<td>−2 413</td>
+<td>−7,39%</td>
+<td>✗</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Oba modele niedoszacowują zużycia energii w 2024 roku, co wynika z wyższego wzrostu PKB i utrzymania wysokich cen energii niż zakładały prognozy. Model Polska spełnia kryterium ≤ 5% błędu względnego (−4,49%), model FE nie spełnia (−7,39%).</p>
+</blockquote>
+<h3>5.5 Porównanie obu modeli</h3>
 <table>
 <thead>
 <tr>
@@ -822,86 +1090,85 @@ $$\text{SE}_{\hat{y}} = \sqrt{\hat{\sigma}^2 \cdot \left(1 + \mathbf{x}_0^T (\ma
 </thead>
 <tbody>
 <tr>
-<td>R² (train)</td>
-<td>0,800</td>
-<td>0,996</td>
+<td>R² (train 2004–2023)</td>
+<td>0,6980</td>
+<td>0,9953</td>
 </tr>
 <tr>
-<td>RMSPE% ex-post rolling (2015–2024)</td>
-<td><strong>6,25% ✓</strong></td>
-<td><strong>5,85% ✓</strong></td>
+<td>RMSPE% in-sample</td>
+<td>3,71% ✓</td>
+<td>3,87% ✓</td>
 </tr>
 <tr>
-<td>RMSPE% warunkowa rolling (2015–2024)</td>
-<td><strong>5,63% ✓</strong></td>
-<td>—</td>
-</tr>
-<tr>
-<td>FC 2025 [GWh]</td>
-<td><strong>32 021</strong></td>
-<td><strong>30 753</strong></td>
+<td>FC 2024 [GWh]</td>
+<td><strong>31 193</strong></td>
+<td><strong>30 248</strong></td>
 </tr>
 <tr>
 <td>Różnica FC</td>
 <td>—</td>
-<td>−1 268 GWh (−4,0%)</td>
+<td>−945 GWh (−3,0%)</td>
+</tr>
+<tr>
+<td>Błąd wzgl. vs rzecz. 2024</td>
+<td><strong>−4,49% ✓</strong></td>
+<td>−7,39% ✗</td>
 </tr>
 <tr>
 <td>Woj. ≤ 10%</td>
 <td>—</td>
-<td><strong>16/16</strong></td>
+<td>14/16</td>
 </tr>
 </tbody>
 </table>
-<p>Oba modele spełniają kryterium RMSPE% ≤ 10%. Krocząca walidacja ex-post na 10 latach (2015–2024) pokazuje że modele działają konsekwentnie z błędem poniżej 6,3% rocznie. Model Polska jest prostszy, natomiast model FE dostarcza informacji na poziomie regionalnym.</p>
+<p>Oba modele spełniają kryterium RMSPE% ≤ 10% na próbie uczącej. Model Polska lepiej trafił prognozę 2024 (błąd −4,49%), natomiast model FE dostarcza dodatkowej informacji na poziomie regionalnym (16 województw).</p>
 <hr />
 <h2>6. Wnioski</h2>
-<h3>6.1 Prognoza na 2025 rok</h3>
-<p>Zużycie energii elektrycznej w Polsce w roku 2025 prognozowane jest na:
-- <strong>32 021 GWh</strong> (Model Polska, przedział ufności 95%: 30 182–33 973 GWh)
-- <strong>30 753 GWh</strong> (Model FE – agregacja województw)</p>
-<p>Punktowe prognozy różnią się o ok. 4%, co jest akceptowalnym poziomem rozbieżności między modelami o różnej specyfikacji i granularności.</p>
+<h3>6.1 Prognoza na 2024 rok</h3>
+<p>Zużycie energii elektrycznej w Polsce w roku 2024 prognozowane było na:
+- <strong>31 193 GWh</strong> (Model Polska OLS, 95% CI: 29 836–32 612 GWh)
+- <strong>30 248 GWh</strong> (Model FE – agregacja województw)</p>
+<p>Wartość rzeczywista wyniosła <strong>32 661 GWh</strong>. Oba modele niedoszacowały zużycia energii: Model Polska o 4,49% (błąd mieści się w kryterium ≤ 5%), Model FE o 7,39%.</p>
 <h3>6.2 Kluczowe czynniki wzrostu</h3>
 <ol>
-<li><strong>Wzrost PKB per capita</strong> – główny czynnik długoterminowego wzrostu zużycia energii w Polsce; elastyczność dochodowa ≈ 0,07</li>
-<li><strong>Ceny energii</strong> – wyższe ceny mogą hamować konsumpcję (β₂ &gt; 0, lecz statystycznie słaby sygnał przy multikoliniowości)</li>
+<li><strong>Wzrost PKB per capita</strong> – główny czynnik długoterminowego wzrostu; elastyczność dochodowa β₁ = 0,08 (model Polska)</li>
+<li><strong>Ceny energii</strong> – wyższe ceny mogą hamować konsumpcję (β₂ = 0,14); sygnał osłabiony multikoliniowością</li>
 <li><strong>Warunki klimatyczne (HDD)</strong> – silniejsze zimy zwiększają zużycie energii grzewczej</li>
+<li><strong>Dochód rozporządzalny (model FE)</strong> – elastyczność dochodowa β = 0,23, istotna statystycznie (p &lt; 0,001)</li>
 </ol>
 <h3>6.3 Ograniczenia modeli</h3>
 <ol>
-<li><strong>Krótki szereg czasowy</strong> (n=19–21) ogranicza precyzję estymacji i moc testów diagnostycznych</li>
-<li><strong>Kryzys cen energii 2022–2023</strong> – bezprecedensowy wzrost cen jest trudny do uchwycenia przez modele trendu; prognozy CENA mają RMSPE% ~17%</li>
-<li><strong>Multikoliniowość</strong> – PKB i CENA wykazują silne trendy, co utrudnia izolację ich wpływów (VIF ≈ 7–8), choć nie wpływa negatywnie na jakość prognoz zagregowanych</li>
-<li><strong>Autokorelacja reszt</strong> – charakterystyczna dla rocznych szeregów makroekonomicznych; nie korygowana (korekta HAC nie jest wymagana kursowo)</li>
-<li><strong>Efekty strukturalne</strong> – transformacja energetyczna, odnawialne źródła energii i efektywność energetyczna mogą zmieniać zależności strukturalne w kolejnych latach</li>
+<li><strong>Krótki szereg czasowy</strong> (n=20) ogranicza precyzję estymacji i moc testów diagnostycznych</li>
+<li><strong>Kryzys cen energii 2022–2023</strong> – bezprecedensowy wzrost cen jest trudny do uchwycenia przez modele trendu; błąd prognozy ceny wynosi −9,90%</li>
+<li><strong>Multikoliniowość</strong> – PKB i CENA wykazują silne trendy (VIF ≈ 8–10), co utrudnia izolację ich wpływów, choć nie wpływa negatywnie na RMSPE%</li>
+<li><strong>Autokorelacja reszt</strong> – charakterystyczna dla rocznych szeregów makroekonomicznych; nie korygowana, gdyż nie jest wymagana kursowo</li>
+<li><strong>Efekty strukturalne</strong> – transformacja energetyczna i odnawialne źródła energii mogą zmieniać zależności strukturalne w kolejnych latach</li>
 </ol>
 <h3>6.4 Ocena modeli według kryterium RMSPE% ≤ 10%</h3>
-<p>Ocena opiera się na <strong>kroczącej walidacji ex-post</strong> dla lat 2015–2024 (n=10 prognoz jednorokowych naprzód).</p>
 <table>
 <thead>
 <tr>
 <th>Model</th>
-<th>RMSPE% ex-post rolling</th>
-<th>RMSPE% warunkowa rolling</th>
+<th>RMSPE% in-sample (2004–2023)</th>
+<th>Błąd ex-ante 2024</th>
 <th>Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Model Polska (OLS log-liniowy)</td>
-<td><strong>6,25%</strong></td>
-<td><strong>5,63%</strong></td>
+<td><strong>3,71%</strong></td>
+<td>−4,49%</td>
 <td>✓ Spełnia kryterium</td>
 </tr>
 <tr>
 <td>Model FE Województwa</td>
-<td><strong>5,85%</strong></td>
-<td>—</td>
-<td>✓ Spełnia kryterium</td>
+<td><strong>3,87%</strong></td>
+<td>−7,39%</td>
+<td>✓ In-sample / ✗ Trafność 2024</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Oba modele spełniają kryterium RMSPE% ≤ 10%. Wszystkie 16 województw spełnia kryterium indywidualnie (16/16).</strong></p>
 <hr />
 <h2>7. Pliki projektu</h2>
 <table>
@@ -917,16 +1184,12 @@ $$\text{SE}_{\hat{y}} = \sqrt{\hat{\sigma}^2 \cdot \left(1 + \mathbf{x}_0^T (\ma
 <td>Główny skrypt analityczny (Zadania 2–5)</td>
 </tr>
 <tr>
-<td><code>dashboard_new.py</code></td>
-<td>Interaktywny dashboard Streamlit</td>
+<td><code>_md2docx.py</code></td>
+<td>Konwerter raport.md do raport.docx</td>
 </tr>
 <tr>
 <td><code>uruchom_projekt.bat</code></td>
 <td>Skrypt uruchomieniowy (CLI)</td>
-</tr>
-<tr>
-<td><code>dashboard_new.bat</code></td>
-<td>Skrypt uruchamiający dashboard</td>
 </tr>
 <tr>
 <td><code>Zuzycie_energii_polska.xlsx</code></td>
@@ -937,35 +1200,30 @@ $$\text{SE}_{\hat{y}} = \sqrt{\hat{\sigma}^2 \cdot \left(1 + \mathbf{x}_0^T (\ma
 <td>Dane panelowe dla 16 województw (2004–2024)</td>
 </tr>
 <tr>
-<td><code>z4_results.pkl</code></td>
-<td>Wyniki Z4 (dla dashboardu, generowany przez analiza.py)</td>
-</tr>
-<tr>
 <td><code>z2_01..z2_09_*.png</code></td>
-<td>Wykresy EDA</td>
+<td>Wykresy EDA (analiza opisowa)</td>
 </tr>
 <tr>
 <td><code>z3_01..z3_07_*.png</code></td>
 <td>Wykresy modeli ekonometrycznych</td>
 </tr>
 <tr>
-<td><code>z4_01..z4_08_*.png</code></td>
-<td>Wykresy prognoz zmiennych X</td>
+<td><code>z4_01..z4_05_*.png</code></td>
+<td>Tabele RMSPE prognoz zmiennych X</td>
 </tr>
 <tr>
-<td><code>z5_01..z5_05_*.png</code></td>
-<td>Wykresy prognoz warunkowych Y</td>
+<td><code>z4_09_*.png</code></td>
+<td>Analiza trafności prognoz X (2024 vs rzecz.)</td>
+</tr>
+<tr>
+<td><code>z5_01..z5_06_*.png</code></td>
+<td>Wykresy prognoz warunkowych Y i analiza trafności</td>
 </tr>
 </tbody>
 </table>
 <h3>Uruchomienie</h3>
-<pre><code class="language-bash"># Pełna analiza (generuje wszystkie pliki PNG i z4_results.pkl)
-py analiza.py
-
-# Interaktywny dashboard Streamlit
-py -m streamlit run dashboard_new.py
-# lub
-dashboard_new.bat
+<pre><code class="language-bash">py analiza.py
+py _md2docx.py
 </code></pre>
 <hr />
 <h2>8. Metodologia – szczegóły techniczne</h2>
@@ -974,22 +1232,86 @@ dashboard_new.bat
 - Relacja ekonomiczna między PKB a zużyciem energii ma charakter elastyczności stałej
 - Logarytmowanie stabilizuje wariancję przy rosnących wartościach szeregów
 - Współczynniki β₁, β₂ interpretowane są bezpośrednio jako elastyczności</p>
-<p>Prognoza na oryginalnej skali: $\hat{Y} = \exp(\hat{y})$</p>
+<p>Prognoza na oryginalnej skali: <code>Y_hat = exp(y_hat)</code></p>
 <h3>8.2 Efekty stałe (Fixed Effects)</h3>
 <p>Model FE zastosowano zamiast modelu RE (Random Effects) ze względu na:
-- Wysoce istotny wynik F-testu łącznej istotności efektów stałych (F ≈ 2787, p ≈ 0)
-- Korelację nieobserwowalnych efektów indywidualnych z zmiennymi objaśniającymi (Hausman-like argument)</p>
+- Wysoce istotny F-test łącznej istotności efektów stałych: F(15, 282) = 2 425,9, p ≈ 0
+- Korelację nieobserwowalnych efektów indywidualnych z zmiennymi objaśniającymi</p>
 <h3>8.3 Zmienna opóźniona</h3>
 <p>Zmienną <code>ln_dochod_os</code> zastosowano z opóźnieniem o jeden rok (<code>lag1</code>), co:
-- Eliminuje potencjalną endogeniczność (dochód bieżący może być współzależny z zużyciem energii)
-- Modeluje realny mechanizm transmisji: zmiana dochodów wpływa na decyzje energetyczne z opóźnieniem (zakup urządzeń, zmiana standardu mieszkaniowego)</p>
-<h3>8.4 Selekcja zmiennych</h3>
+- Eliminuje potencjalną endogeniczność
+- Modeluje realny mechanizm transmisji: zmiana dochodów wpływa na decyzje energetyczne z opóźnieniem (zakup urządzeń, zmiana standardu mieszkaniowego)
+- Powoduje wykluczenie roku 2004 ze zbioru uczącego FE (efektywny train: 2005–2023, n=304)</p>
+<h3>8.4 Selekcja zmiennych i metod</h3>
 <ul>
-<li><strong>CDD (stopniodni chłodnicze)</strong> usunięte: p &gt; 0,5 w obu modelach — chłodzenie elektryczne ma marginalną rolę w Polsce</li>
-<li><strong>Ludność</strong> nie uwzględniona jako regressor — silna korelacja z PKB (VIF &gt; 15), nie poprawia jakości prognoz</li>
-<li><strong>Dane bez implikacji</strong>: cena energii na poziomie województwa jest zunifikowana (jeden rynek), co wyjaśnia podobne wartości CENA w danych panelowych</li>
+<li><strong>CDD</strong> usunięte: p &gt; 0,5 – chłodzenie elektryczne ma marginalną rolę w Polsce</li>
+<li><strong>Ludność</strong> nieuwzględniona jako regressor – silna korelacja z PKB, nie poprawia jakości prognoz</li>
+<li><strong>AR1 i AR2</strong> usunięte z metod prognozowania – zawierają się w Auto-ARIMA, która automatycznie dobiera optymalny rząd procesu</li>
 </ul>
+<h3>8.5 Miary jakości prognoz</h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Nazwa</th>
+<th>Formuła</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ME</td>
+<td>Średni błąd</td>
+<td>mean(e_t)</td>
+</tr>
+<tr>
+<td>MPE%</td>
+<td>Średni błąd procentowy</td>
+<td>mean(e_t / y_t) × 100</td>
+</tr>
+<tr>
+<td>MAE</td>
+<td>Średni błąd bezwzględny</td>
+<td>mean(abs(e_t))</td>
+</tr>
+<tr>
+<td>MAPE%</td>
+<td>Średni abs. błąd procentowy</td>
+<td>mean(abs(e_t / y_t)) × 100</td>
+</tr>
+<tr>
+<td>RMSE</td>
+<td>Pierwiastek MSE</td>
+<td>sqrt(mean(e_t²))</td>
+</tr>
+<tr>
+<td>RMSPE%</td>
+<td>Pierwiastek MSE procentowy</td>
+<td>sqrt(mean((e_t / y_t)²)) × 100</td>
+</tr>
+<tr>
+<td>TheilU</td>
+<td>Statystyka Theila U</td>
+<td>sqrt(sum e²) / (sqrt(sum y²) + sqrt(sum ŷ²))</td>
+</tr>
+<tr>
+<td>UM</td>
+<td>Obciążoność (bias)</td>
+<td>(mean_hat − mean_act)² / MSE</td>
+</tr>
+<tr>
+<td>UV</td>
+<td>Niedopasowanie wahań</td>
+<td>(sd_hat − sd_act)² / MSE</td>
+</tr>
+<tr>
+<td>UC</td>
+<td>Niedopasowanie kierunku</td>
+<td>2(1−r)·sd_act·sd_hat / MSE</td>
+</tr>
+</tbody>
+</table>
+<p>gdzie e_t = y_t − ŷ_t, oraz UM + UV + UC = 1.</p>
 <hr />
-<p><em>Projekt zrealizowany w języku Python 3.12. Główne biblioteki: NumPy, Pandas, Statsmodels, Matplotlib, Seaborn, pmdarima, Streamlit.</em></p>
+<p><em>Projekt zrealizowany w języku Python 3.12. Główne biblioteki: NumPy, Pandas, Statsmodels, Matplotlib, Seaborn, pmdarima.</em></p>
 </body>
 </html>

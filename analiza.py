@@ -388,7 +388,7 @@ save("z2_03_woj_porownanie.png")
 # PNG 04 – Korelacja Polska
 corr_cols_p = [c for c in [
     "zuzycie_energii_GWh",
-    "pkb_per_capita",
+    "PKB_pc",
     "cena_energii_zl_kWh",
     "HDD",
     "dochod_os",

@@ -1,7 +1,7 @@
 # Prognoza zużycia energii elektrycznej w Polsce
 ## Projekt zaliczeniowy – Prognozowanie i Symulacje
 
-**Autor:** Patryk Siuda  
+**Autor:** Patryk Siuda, Paweł Cyrocki, Damian Skinder  
 **Data:** czerwiec 2026  
 **Dane:** 2004–2024 (GUS, URE, IMGW/Eurostat)
 
