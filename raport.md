@@ -1,31 +1,35 @@
-# Prognoza zużycia energii elektrycznej w Polsce
-## Projekt zaliczeniowy – Prognozowanie i Symulacje
+---
+title: "Prognoza zużycia energii elektrycznej w Polsce"
+output:
+  word_document:
+    toc: true
+    toc_depth: 2
+---
 
-**Autor:** Patryk Siuda  
-**Data:** czerwiec 2026  
-**Dane:** 2004–2024 (GUS, URE, IMGW/Eurostat)
+**Projekt zaliczeniowy – Prognozowanie i Symulacje**
+**Autorzy:** Patryk Siuda, Paweł Cyrocki, Damian Skinder
+**Studiowany kierunek:** Analityka Gospodarcza, st. II (tryb online75)
 
 ---
 
 ## 1. Cel i zakres projektu
 
-Celem projektu jest zbudowanie krótkoterminowej **prognozy warunkowej** zużycia energii elektrycznej w Polsce na rok **2024**, przy wykorzystaniu modeli ekonometrycznych estymowanych na danych historycznych z lat 2004–2023.
+Celem projektu jest zbudowanie krótkoterminowej prognozy warunkowej zużycia energii elektrycznej w Polsce na rok 2024, przy wykorzystaniu modeli ekonometrycznych estymowanych na danych historycznych rocznych z lat 2004–2023. Dane zebrano w podziale na województwa. Pochodzą one z różnych źródeł: GUS, GUS BDL, Eurostat.
 
-Projekt realizuje pełny potok analityczny:
-1. Analiza opisowa danych (EDA) – zadanie 2
-2. Budowa i weryfikacja modeli ekonometrycznych – zadanie 3
-3. Prognozy zmiennych objaśniających (5 metod) – zadanie 4
-4. Prognoza warunkowa zmiennej objaśnianej i analiza trafności – zadanie 5
+W naszej hipotezie badawczej zakładamy, że zużycie energii elektrycznej w Polsce można skutecznie prognozować (RMSPE ≤ 10%) za pomocą wybranych modeli ekonometrycznych.
 
-**Podział próby:**
-- **Zbiór uczący (train):** 2004–2023 (n=20 dla Polska, n=304 dla województw)
-- **Horyzont prognozy ex-ante:** 2024
+Przebieg realizacji projektu:
+1.	Organizacja zespołu projektowego, przydział ról i ustalenie harmonogramu prac.
+2.	Wybór tematu, zbieranie danych i wstępna analiza wraz z postawieniem hipotez badawczych.
+3.	Budowa modeli ekonometrycznych, porównanie wyników
+4.	Rozbudowa bazy danych, poszerzenie analiz oraz usprawnienie modeli i wizualizacji.
+5.	Wyznaczenie prognoz zużycia energii i wprowadzanie finalnych poprawek.
+6.	Opracowanie wniosków końcowych z raportem i przygotowanie prezentacji.
 
-**Ocena jakości prognoz:**
-- Miary jakości (ME, MPE%, MAE, MAPE%, RMSE, RMSPE%, TheilU i składowe UM/UV/UC) obliczane są na **wartościach dopasowanych do pełnej próby uczącej 2004–2023** (in-sample)
-- RMSPE% in-sample stanowi główne kryterium wyboru najlepszej metody prognozowania zmiennych X
-- **Kryterium jakości:** RMSPE% ≤ 10%
-- Trafność prognoz ex-ante na rok 2024 oceniana przez porównanie z wartościami rzeczywistymi (błąd absolutny i względny)
+**Jakość prognoz wyznaczono za pomocą poniższych wskaźników:**
+•	Miary jakości (ME, MPE, MAE, MAPE, RMSE, RMSPE, U-Theil (i jego składowe: UM, UV, UC)) obliczane są w porównaniu do danych rzeczywistych z lat 2004–2023.
+•	RMSPE stanowi główne kryterium wyboru najlepszej metody prognozowania zmiennych – prognozę uznajemy za trafną dla poziomu RMSPE ≤ 10%.
+•	Trafność prognoz ex-ante na rok 2024 oceniana jest przez porównanie z wartościami rzeczywistymi (błąd absolutny i względny)
 
 ---
 
@@ -35,14 +39,14 @@ Projekt realizuje pełny potok analityczny:
 
 | Symbol | Nazwa | Jedn. | Źródło | Rola |
 |--------|-------|-------|--------|------|
-| ZUZYCIE | Zużycie energii elektrycznej | GWh | GUS / URE | Y – zm. objaśniana |
-| PKB_pc | PKB per capita | PLN/os | GUS BDL | X – model Polska |
-| CENA | Cena energii elektrycznej | PLN/kWh | URE / GUS | X – oba modele |
+| zuzycie_energii_GWh | Zużycie energii elektrycznej | GWh | GUS / URE | Y – zm. objaśniana |
+| PKB_pc (lub pkb_per_capita) | PKB per capita | PLN/os | GUS BDL | X – model Polska |
+| cena-energii_zl_kWh | Cena energii elektrycznej | PLN/kWh | URE / GUS | X – oba modele |
 | HDD | Stopniodni grzewcze | °C·dzień | IMGW / Eurostat | X – oba modele |
-| DOCHOD_OS | Dochód rozp. na osobę | PLN/os | GUS BDL | X – model FE woj. |
-| URBANIZACJA | Stopień urbanizacji | % | GUS BDL | X – model FE woj. |
-| LICZBA_OS | Śr. liczba osób w gosp. dom. | osoby | GUS | X – model FE woj. |
-| POW_OS | Pow. użytkowa mieszk. na os. | m²/os | GUS BDL | X – model FE woj. |
+| dochod_os | Dochód rozp. na osobę | PLN/os | GUS BDL | X – model FE woj. |
+| urbanizacja_pct | Stopień urbanizacji | % | GUS BDL | X – model FE woj. |
+| liczba_os | Śr. liczba osób w gosp. dom. | osoby | GUS | X – model FE woj. |
+| pow_os | Pow. użytkowa mieszk. na os. | m²/os | GUS BDL | X – model FE woj. |
 
 > **Uwaga:** Zmienna CDD (stopniodni chłodnicze) została usunięta z modeli po uzyskaniu nieistotnego statystycznie współczynnika (p > 0,5), co wskazuje na jej marginalną rolę w polskich warunkach klimatycznych.
 

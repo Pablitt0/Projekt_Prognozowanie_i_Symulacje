@@ -386,9 +386,31 @@ plt.tight_layout()
 save("z2_03_woj_porownanie.png")
 
 # PNG 04 – Korelacja Polska
-corr_cols_p = [c for c in ["zuzycie_energii_GWh","pkb_per_capita","cena_energii_zl_kWh","hdd","cdd","ludnosc"] if c in df_p.columns]
-labels_cor_p = ["Zużycie\n[GWh]","PKB\npc","Cena\n[PLN/kWh]","HDD","CDD","Ludność"][:len(corr_cols_p)]
-fig, ax = plt.subplots(figsize=(9, 7))
+corr_cols_p = [
+    "zuzycie_energii_GWh",
+    "pkb_per_capita",        # wyliczone z pkb_mln_zl / ludnosc
+    "cena_energii_zl_kWh",
+    "hdd",
+    "dochod_os",
+    "urbanizacja_pct",
+    "liczba_os",
+    "pow_os",
+]
+
+labels_map = {
+    "zuzycie_energii_GWh":  "Zużycie\n[GWh]",
+    "pkb_per_capita":        "PKB\npc",
+    "cena_energii_zl_kWh":  "Cena\n[PLN/kWh]",
+    "hdd":                   "HDD",
+    "dochod_os":             "Dochód\nos.",
+    "urbanizacja_pct":       "Urbanizacja\n[%]",
+    "liczba_os":             "Liczba\nos.",
+    "pow_os":                "Pow.\nos.",
+}
+
+labels_cor_p = [labels_map[c] for c in corr_cols_p]
+
+fig, ax = plt.subplots(figsize=(10, 8))
 sns.heatmap(df_p[corr_cols_p].corr(), annot=True, fmt=".2f", cmap="RdBu_r",
             vmin=-1, vmax=1, ax=ax, linewidths=0.5, annot_kws={"size":10})
 ax.set_xticklabels(labels_cor_p, rotation=30, ha="right")
@@ -419,17 +441,6 @@ for ax, (col, xlabel, color) in zip(axes, scatter_p):
 plt.tight_layout()
 save("z2_05_scatter_polska.png")
 
-# PNG 06 – Korelacja Województwa
-corr_cols_w = [c for c in ["zuzycie_energii_GWh","dochod_os","cena_energii_zl_kWh","urbanizacja_pct","liczba_os","pow_os","hdd"] if c in df_w.columns]
-labels_cor_w = ["Zużycie\n[GWh]","Dochód\nos.","Cena\n[PLN/kWh]","Urbaniz.\n[%]","Liczba\nos.","Pow.\nos.","HDD"][:len(corr_cols_w)]
-fig, ax = plt.subplots(figsize=(10, 8))
-sns.heatmap(df_w[corr_cols_w].corr(), annot=True, fmt=".2f", cmap="RdBu_r",
-            vmin=-1, vmax=1, ax=ax, linewidths=0.5, annot_kws={"size":9})
-ax.set_xticklabels(labels_cor_w, rotation=30, ha="right")
-ax.set_yticklabels(labels_cor_w, rotation=0)
-ax.set_title("Macierz korelacji Pearsona – panel województw (2004–2024)", fontsize=12, fontweight="bold")
-plt.tight_layout()
-save("z2_06_korelacja_woj.png")
 
 # PNG 07 – Scatter Województwa
 scatter_w = [(c,l,col) for c,l,col in [
