@@ -386,26 +386,26 @@ plt.tight_layout()
 save("z2_03_woj_porownanie.png")
 
 # PNG 04 – Korelacja Polska
-corr_cols_p = [c for c in [
+corr_cols_p = [
     "zuzycie_energii_GWh",
-    "PKB_pc",
+    "pkb_per_capita",        # wyliczone z pkb_mln_zl / ludnosc
     "cena_energii_zl_kWh",
-    "HDD",
+    "hdd",
     "dochod_os",
     "urbanizacja_pct",
     "liczba_os",
-    "pow_os"
-] if c in df_p.columns]
+    "pow_os",
+]
 
 labels_map = {
     "zuzycie_energii_GWh":  "Zużycie\n[GWh]",
-    "PKB_pc":               "PKB\npc",
+    "pkb_per_capita":        "PKB\npc",
     "cena_energii_zl_kWh":  "Cena\n[PLN/kWh]",
-    "HDD":                  "HDD",
-    "dochod_os":            "Dochód\nos.",
-    "urbanizacja_pct":      "Urbanizacja\n[%]",
-    "liczba_os":            "Liczba\nos.",
-    "pow_os":               "Pow.\nos."
+    "hdd":                   "HDD",
+    "dochod_os":             "Dochód\nos.",
+    "urbanizacja_pct":       "Urbanizacja\n[%]",
+    "liczba_os":             "Liczba\nos.",
+    "pow_os":                "Pow.\nos.",
 }
 
 labels_cor_p = [labels_map[c] for c in corr_cols_p]
